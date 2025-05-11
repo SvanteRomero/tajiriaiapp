@@ -1,34 +1,36 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:tajiri_ai/pages/home_page.dart';
+
 import 'pages/login_page.dart';
 import 'pages/register_page.dart';
+import 'pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(
-    TajiriAiApp(),
-  );
+  runApp(const TajiriAiApp());
 }
 
 class TajiriAiApp extends StatelessWidget {
-  const TajiriAiApp({super.key});
+  const TajiriAiApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return  MaterialApp(
-      routes: {'/loginpage': (context) => const LoginPage(),
-        '/registerpage': (context) => const RegisterPage(),
-        '/homepage': (context) => const HomePage(),
-      },
+    return MaterialApp(
+      title: 'Tajiri AI',
       debugShowCheckedModeBanner: false,
-      home: AuthWrapper(),
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+      },
+      home: const AuthWrapper(),
     );
-  }}
+  }
+}
+
 class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
+  const AuthWrapper({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -36,18 +38,19 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator(); // or a splash screen
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
         if (snapshot.hasData) {
-          // User is logged in
-          return HomePage();
-        } else {
-          // User is not logged in
-          return LoginPage();
+          return HomePage(user: snapshot.data!);
         }
+
+        return const LoginPage();
       },
     );
   }
 }
-
