@@ -1,191 +1,131 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:tajiri_ai/components//input.dart';
+import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({Key? key}) : super(key: key);
 
   @override
-  State<LoginPage> createState() => _LoginpageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginpageState extends State<LoginPage> {
-  bool _isLoading =false;
+class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-    bool isLoggedIn = false;
-void login() async {
-  if (_formKey.currentState!.validate()) {
+  bool _isLoading = false;
 
-    final email = _emailController.text;
-    final password = _passwordController.text;
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       _isLoading = true;
     });
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please fill in all fields"),
-        ),
-      );
-    }
 
     try {
-            await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
-      isLoggedIn = true;
-      Navigator.pushReplacementNamed(context, "/homepage");
-      _emailController.clear();
-      _passwordController.clear();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => HomePage(user: FirebaseAuth.instance.currentUser!)),
+      );
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Error: ${e.code}",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(e.message ?? 'Login failed')),
       );
-
-    }finally{
-      setState(() {
-
-        _isLoading = false;
-      });
-
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
-  }else{
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Form Invalid: Retry Again")));
-    setState(() {
-
-      _isLoading = false;
-    });
-  }
-}
-
-
-  @override
-  void initState() {
-    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: _isLoading? CircularProgressIndicator(value: 0.7,): Column(
-          spacing: 15,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Logo
-            Image.asset("assets/logo.png", width: 200, height: 150),
-            // Title
-            Text(
-              "Login",
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-                color: const Color.fromARGB(255, 1, 0, 86),
-              ),
-            ),
-           Form(
-
-
-             key: _formKey,
-             child: SizedBox(
-               width: 300,
-               child: SingleChildScrollView(
-                 child: Column(
-                     spacing: 15,
-                     children: [
-                     // Email Text field
-                     TextFormField(
-                     controller: _emailController,
-                     decoration: InputDecoration(
-                       labelText: "Email",
-                       hintText: "JohnDoe@example.com",
-                       border: OutlineInputBorder(
-                         borderSide: BorderSide(color: Colors.black),
-                       ),
-                       hintStyle: TextStyle(
-                         color: Colors.grey,
-                         fontSize: 12,
-                         fontStyle: FontStyle.italic,
-                       ),
-                     ),
-                     keyboardType: TextInputType.emailAddress,
-                     validator: (value) {
-                       if (value == null || value.isEmpty) {
-                         return 'Please enter an email';
-                       }
-                       // Basic email format check (use a more robust regex or package for production)
-                       final emailRegex = RegExp(
-                         r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~-]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-                       );
-                       if (!emailRegex.hasMatch(value)) {
-                         return 'Please enter a valid email address';
-                       }
-                 
-                       return null; // Return null if valid
-                     }),
-                       // Password TextField
-                       TextFormField(
-                         controller: _passwordController,
-                         decoration: InputDecoration(labelText: 'Password',  border: OutlineInputBorder(
-                           borderSide: BorderSide(color: Colors.black),
-                         ),),
-                         obscureText: true,
-                         validator: (value) {
-                           if (value == null || value.isEmpty) {
-                             return 'Please enter a password';
-                           }
-                           if (value.length < 6) {
-                             return 'Password must be at least 6 characters';
-                           }
-                           return null; // Return null if valid
-                         },
-                       ),
-                       SizedBox(width: _isLoading? 35: 300,
-                         child:  ElevatedButton(
-                           onPressed: ()  {
-                            login();
-                         
-                           },
-                           child: Text("Login"),
-                         ),
-                       ),
-                 
-                     ]
-                 
-                 
-                 
-                            ),
-               ),
-             )),
-            // Submit Button
-
-            GestureDetector(
-              onTap: () {
-                Navigator.pushNamed(context, '/registerpage');
-              },
-              child: Text(
-                "Don't have an account?",
-                style: TextStyle(
-                  fontSize: 15,
-                  color: const Color.fromARGB(255, 1, 0, 86),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset('assets/logo.png', width: 200, height: 150),
+                const SizedBox(height: 24),
+                const Text(
+                  'Login',
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                 ),
-              ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'john.doe@example.com',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Enter an email';
+                    }
+                    final regex = RegExp(r"^[^@]+@[^@]+\.[^@]+");
+                    if (!regex.hasMatch(value)) {
+                      return 'Enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Enter a password';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text('Login'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed('/register');
+                  },
+                  child: const Text("Don't have an account? Register"),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
