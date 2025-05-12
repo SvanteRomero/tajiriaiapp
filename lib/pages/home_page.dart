@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'advisory.dart';
 import 'analytics.dart';
 import 'home.dart';
+import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final User user;
@@ -48,7 +49,11 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
-              // TODO: Implement profile action
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProfilePage(user: widget.user),
+                ),
+              );
             },
           ),
         ],
