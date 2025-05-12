@@ -24,131 +24,176 @@ class Analytics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('transactions')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const EmptyPage(
-              pageIconData: Icons.waterfall_chart,
-              pageTitle: 'Analytics Unavailable',
-              pageDescription: 'Add your financial details to get your statistics',
-            );
-          }
-          final txs = snapshot.data!.docs.map((doc) {
-            final data = doc.data()! as Map<String, dynamic>;
-            return my_tx.Transaction(
-              username: data['username'] as String,
-              description: data['description'] as String,
-              amount: (data['amount'] as num).toDouble(),
-              date: (data['date'] as Timestamp).toDate(),
-              type: data['type'] == 'income'
-                  ? my_tx.TransactionType.income
-                  : my_tx.TransactionType.expense,
-            );
-          }).toList();
-          final incomeData = _aggregateByMonth(txs, isIncome: true);
-          final expenseData = _aggregateByMonth(txs, isIncome: false);
-          final topExpenses = _topCategories(txs, isIncome: false);
-          final topIncomes = _topCategories(txs, isIncome: true);
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: _metricCard('Top Expense', topExpenses)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _metricCard('Top Income', topIncomes)),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Text('Monthly Trends', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 200,
-                  child: SfCartesianChart(
-                    primaryXAxis: CategoryAxis(),
-                    legend: Legend(isVisible: true),
-                    series: <LineSeries<MonthData, String>>[
-                      LineSeries<MonthData, String>(
-                        name: 'Income',
-                        dataSource: incomeData,
-                        xValueMapper: (d, _) => d.month,
-                        yValueMapper: (d, _) => d.total,
-                      ),
-                      LineSeries<MonthData, String>(
-                        name: 'Expense',
-                        dataSource: expenseData,
-                        xValueMapper: (d, _) => d.month,
-                        yValueMapper: (d, _) => d.total,
-                      ),
-                    ],
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('transactions')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return const EmptyPage(
+                pageIconData: Icons.bar_chart,
+                pageTitle: 'No Data Yet',
+                pageDescription: 'Add transactions to see analytics',
+              );
+            }
+            final txs = snapshot.data!.docs.map((doc) {
+              final d = doc.data()! as Map<String, dynamic>;
+              return my_tx.Transaction(
+                username: d['username'],
+                description: d['description'],
+                amount: (d['amount'] as num).toDouble(),
+                date: (d['date'] as Timestamp).toDate(),
+                type: d['type'] == 'income'
+                    ? my_tx.TransactionType.income
+                    : my_tx.TransactionType.expense,
+              );
+            }).toList();
+
+            final incomeData = _aggregateByMonth(txs, isIncome: true);
+            final expenseData = _aggregateByMonth(txs, isIncome: false);
+            final topExpenses = _topCategories(txs, isIncome: false);
+            final topIncomes = _topCategories(txs, isIncome: true);
+
+            return CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.2,
+                    ),
+                    delegate: SliverChildListDelegate([
+                      _styledMetricCard(
+                          'Top Expense', topExpenses.isNotEmpty ? topExpenses.first.value.toStringAsFixed(2) : '0.00',
+                          topExpenses.isNotEmpty ? topExpenses.first.category : 'N/A', Colors.red),
+                      _styledMetricCard(
+                          'Top Income', topIncomes.isNotEmpty ? topIncomes.first.value.toStringAsFixed(2) : '0.00',
+                          topIncomes.isNotEmpty ? topIncomes.first.category : 'N/A', Colors.green),
+                    ]),
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text('Expense Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 200,
-                  child: SfCircularChart(
-                    legend: Legend(isVisible: true),
-                    series: <PieSeries<CategoryData, String>>[
-                      PieSeries<CategoryData, String>(
-                        dataSource: topExpenses,
-                        xValueMapper: (d, _) => d.category,
-                        yValueMapper: (d, _) => d.value,
-                        dataLabelSettings: const DataLabelSettings(isVisible: true),
-                      ),
-                    ],
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                    child: Text('Monthly Trends', style: Theme.of(context).textTheme.titleMedium),
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text('Income Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 200,
-                  child: SfCircularChart(
-                    legend: Legend(isVisible: true),
-                    series: <PieSeries<CategoryData, String>>[
-                      PieSeries<CategoryData, String>(
-                        dataSource: topIncomes,
-                        xValueMapper: (d, _) => d.category,
-                        yValueMapper: (d, _) => d.value,
-                        dataLabelSettings: const DataLabelSettings(isVisible: true),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 250,
+                    child: Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: SfCartesianChart(
+                          primaryXAxis: CategoryAxis(
+                              majorGridLines: const MajorGridLines(width: 0)),
+                          primaryYAxis: NumericAxis(
+                              axisLine: const AxisLine(width: 0),
+                              majorTickLines: const MajorTickLines(size: 0)),
+                          legend: Legend(isVisible: true, position: LegendPosition.bottom),
+                          series: <LineSeries<MonthData, String>>[
+                            LineSeries<MonthData, String>(
+                                name: 'Income',
+                                color: Colors.green,
+                                dataSource: incomeData,
+                                xValueMapper: (d, _) => d.month,
+                                yValueMapper: (d, _) => d.total),
+                            LineSeries<MonthData, String>(
+                                name: 'Expense',
+                                color: Colors.red,
+                                dataSource: expenseData,
+                                xValueMapper: (d, _) => d.month,
+                                yValueMapper: (d, _) => d.total),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                    child: Text('Breakdown', style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1),
+                    delegate: SliverChildListDelegate([
+                      _styledChartCard('Expenses', topExpenses, isExpense: true),
+                      _styledChartCard('Incomes', topIncomes, isExpense: false),
+                    ]),
                   ),
                 ),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _metricCard(String title, List<CategoryData> list) {
-    final value = list.isNotEmpty ? list.first.value.toStringAsFixed(2) : '0.00';
-    final label = list.isNotEmpty ? list.first.category : 'N/A';
+  Widget _styledMetricCard(String title, String value, String label, Color accent) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 3,
+      child: Container(
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(colors: [accent.withOpacity(0.1), Colors.white])),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontSize: 14)),
-            const SizedBox(height: 8),
-            Text('\\$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(title, style: TextStyle(color: accent, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Text('Tsh $value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: accent)),
             const SizedBox(height: 4),
-            Text(label),
+            Text(label, style: const TextStyle(color: Colors.black54)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _styledChartCard(String title, List<CategoryData> data, {required bool isExpense}) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Expanded(
+              child: SfCircularChart(
+                legend: Legend(isVisible: true, overflowMode: LegendItemOverflowMode.wrap),
+                series: <PieSeries<CategoryData, String>>[
+                  PieSeries<CategoryData, String>(
+                    dataSource: data,
+                    xValueMapper: (d, _) => d.category,
+                    yValueMapper: (d, _) => d.value,
+                    dataLabelSettings: const DataLabelSettings(isVisible: true),
+                  )
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -163,9 +208,7 @@ class Analytics extends StatelessWidget {
       final label = '${tx.date.month}/${tx.date.year}';
       totals[label] = (totals[label] ?? 0) + tx.amount;
     }
-    final list = totals.entries
-        .map((e) => MonthData(month: e.key, total: e.value))
-        .toList();
+    final list = totals.entries.map((e) => MonthData(month: e.key, total: e.value)).toList();
     list.sort((a, b) => a.month.compareTo(b.month));
     return list;
   }
@@ -177,8 +220,7 @@ class Analytics extends StatelessWidget {
         (!isIncome && t.type == my_tx.TransactionType.expense))) {
       totals[tx.description] = (totals[tx.description] ?? 0) + tx.amount;
     }
-    final sorted = totals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final sorted = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return sorted.take(topN).map((e) => CategoryData(category: e.key, value: e.value)).toList();
   }
 }
