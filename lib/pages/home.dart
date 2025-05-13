@@ -16,7 +16,6 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   bool _isLoading = true;
   List<my_model.Transaction> _transactions = [];
-  List<String> _transactionIds = [];
   String _displayName = '';
 
   @override
@@ -51,23 +50,23 @@ class _HomeState extends State<Home> {
           .collection('transactions')
           .orderBy('date', descending: true)
           .get();
-      final docs = snapshot.docs;
-      final transactions = docs.map((doc) {
+
+      final transactions = snapshot.docs.map((doc) {
         final data = doc.data();
         final type = (data['type'] as String) == 'income'
             ? my_model.TransactionType.income
             : my_model.TransactionType.expense;
         return my_model.Transaction(
-          username: data['username'] as String,
-          description: data['description'] as String,
+          username: data['username'] ?? '',
+          description: data['description'] ?? '',
           amount: (data['amount'] as num).toDouble(),
           date: (data['date'] as Timestamp).toDate(),
           type: type,
         );
       }).toList();
+
       setState(() {
         _transactions = transactions;
-        _transactionIds = docs.map((doc) => doc.id).toList();
         _isLoading = false;
       });
     } catch (_) {
@@ -94,6 +93,109 @@ class _HomeState extends State<Home> {
     pageDescription: "Tap '+' to add your first transaction",
   );
 
+  void _showAddTransactionDialog() {
+    final descriptionController = TextEditingController();
+    final amountController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    my_model.TransactionType type = my_model.TransactionType.expense;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Transaction'),
+        content: StatefulBuilder(
+          builder: (context, setState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<my_model.TransactionType>(
+                  value: type,
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => type = val);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                        value: my_model.TransactionType.income,
+                        child: Text('Income')),
+                    DropdownMenuItem(
+                        value: my_model.TransactionType.expense,
+                        child: Text('Expense')),
+                  ],
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Amount'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Date: ${DateFormat.yMMMd().format(selectedDate)}'),
+                    TextButton(
+                      onPressed: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (pickedDate != null) {
+                          setState(() => selectedDate = pickedDate);
+                        }
+                      },
+                      child: const Text('Pick Date'),
+                    )
+                  ],
+                )
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final description = descriptionController.text.trim();
+              final amount =
+                  double.tryParse(amountController.text.trim()) ?? 0;
+              if (description.isEmpty || amount <= 0) return;
+
+              final transaction = {
+                'username': _displayName,
+                'description': description,
+                'amount': amount,
+                'date': Timestamp.fromDate(selectedDate),
+                'type': type == my_model.TransactionType.income
+                    ? 'income'
+                    : 'expense',
+              };
+
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(widget.user.uid)
+                  .collection('transactions')
+                  .add(transaction);
+
+              Navigator.pop(context);
+              await _fetchTransactions();
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: _isLoading
@@ -119,7 +221,8 @@ class _HomeState extends State<Home> {
                 const SizedBox(height: 16),
                 const Row(
                   children: [
-                    Icon(Icons.account_balance_wallet, size: 32, color: Colors.white),
+                    Icon(Icons.account_balance_wallet,
+                        size: 32, color: Colors.white),
                     SizedBox(width: 8),
                     Text(
                       'Current Balance',
@@ -138,38 +241,6 @@ class _HomeState extends State<Home> {
                       fontWeight: FontWeight.bold,
                       color: Colors.white),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.zero),
-                        ),
-                        onPressed: _showAddTypeDialog,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Income'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.zero),
-                        ),
-                        onPressed: _showAddTypeDialog,
-                        icon: const Icon(Icons.remove),
-                        label: const Text('Add Expense'),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -179,38 +250,34 @@ class _HomeState extends State<Home> {
             style: TextStyle(
                 fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        ...List.generate(_transactions.length, (i) {
-          final tx = _transactions[i];
-          return ListTile(
-            leading: Icon(
-              tx.type == my_model.TransactionType.income
-                  ? Icons.arrow_downward
-                  : Icons.arrow_upward,
-              color: tx.type == my_model.TransactionType.income
-                  ? Colors.green
-                  : Colors.red,
-            ),
-            title: Text(tx.description),
-            subtitle: Text(DateFormat.yMMMd().format(tx.date)),
-            trailing: Text(
-              '${tx.type == my_model.TransactionType.income ? '+' : '-'} ${_formatCurrency(tx.amount)}',
-              style: TextStyle(
-                  color: tx.type == my_model.TransactionType.income
-                      ? Colors.green
-                      : Colors.red,
-                  fontWeight: FontWeight.bold),
-            ),
-            onTap: () => _showTransactionDetailsDialog(i),
-            onLongPress: () => _showEditTransactionDialog(i),
-          );
-        }),
+        ..._transactions.map((tx) => ListTile(
+          leading: Icon(
+            tx.type == my_model.TransactionType.income
+                ? Icons.arrow_downward
+                : Icons.arrow_upward,
+            color:
+            tx.type == my_model.TransactionType.income
+                ? Colors.green
+                : Colors.red,
+          ),
+          title: Text(tx.description),
+          subtitle:
+          Text(DateFormat.yMMMd().format(tx.date)),
+          trailing: Text(
+            '${tx.type == my_model.TransactionType.income ? '+' : '-'} ${_formatCurrency(tx.amount)}',
+            style: TextStyle(
+                color: tx.type ==
+                    my_model.TransactionType.income
+                    ? Colors.green
+                    : Colors.red,
+                fontWeight: FontWeight.bold),
+          ),
+        )),
       ],
     )),
-    floatingActionButton:
-    FloatingActionButton(onPressed: _showAddTypeDialog, child: const Icon(Icons.add)),
+    floatingActionButton: FloatingActionButton(
+      onPressed: _showAddTransactionDialog,
+      child: const Icon(Icons.add),
+    ),
   );
-
-  void _showAddTypeDialog() {}
-  void _showTransactionDetailsDialog(int index) {}
-  void _showEditTransactionDialog(int index) {}
 }

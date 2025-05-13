@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -16,10 +19,12 @@ class _ProfilePageState extends State<ProfilePage> {
   String _name = '';
   String _email = '';
   String _phone = '';
+  String? _photoUrl;
   double _balance = 0;
   double _totalIncome = 0;
   double _totalExpense = 0;
   final _formKey = GlobalKey<FormState>();
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -33,7 +38,7 @@ class _ProfilePageState extends State<ProfilePage> {
           .collection('users')
           .doc(widget.user.uid)
           .get();
-      final txs = await FirebaseFirestore.instance
+      final txSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.user.uid)
           .collection('transactions')
@@ -41,16 +46,16 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       final data = userDoc.data() ?? {};
       double income = 0, expense = 0;
-      for (var doc in txs.docs) {
-        final d = doc.data();
+      for (var d in txSnapshot.docs.map((d) => d.data())) {
         final amt = (d['amount'] as num).toDouble();
         if (d['type'] == 'income') income += amt;
         else expense += amt;
       }
       setState(() {
-        _name = (data['name'] as String?)?.trim() ?? widget.user.displayName ?? '';
+        _name = data['name'] as String? ?? widget.user.displayName ?? '';
         _email = data['email'] as String? ?? widget.user.email!;
         _phone = data['phone'] as String? ?? '';
+        _photoUrl = data['photoUrl'] as String?;
         _totalIncome = income;
         _totalExpense = expense;
         _balance = income - expense;
@@ -59,6 +64,75 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickOrChangePhoto() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: Text(_photoUrl == null ? 'Add Photo' : 'Change Photo')),
+          ListTile(
+            leading: const Icon(Icons.photo_library),
+            title: const Text('Choose from Gallery'),
+            onTap: () => Navigator.pop(context, 'gallery'),
+          ),
+          if (_photoUrl != null)
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Remove Photo'),
+              onTap: () => Navigator.pop(context, 'remove'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.close),
+            title: const Text('Cancel'),
+            onTap: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+    if (action == 'gallery') {
+      final picked = await _picker.pickImage(source: ImageSource.gallery);
+      if (picked != null) await _uploadPhoto(File(picked.path));
+    } else if (action == 'remove') {
+      await _removePhoto();
+    }
+  }
+
+  Future<void> _uploadPhoto(File file) async {
+    try {
+      setState(() => _isLoading = true);
+      final ref = FirebaseStorage.instance
+          .ref('users/${widget.user.uid}/profile.jpg');
+      await ref.putFile(file);
+      final url = await ref.getDownloadURL();
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.user.uid)
+          .update({'photoUrl': url});
+      await widget.user.updatePhotoURL(url);
+      await _loadAllDetails();
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    try {
+      setState(() => _isLoading = true);
+      final ref = FirebaseStorage.instance
+          .ref('users/${widget.user.uid}/profile.jpg');
+      await ref.delete();
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.user.uid)
+          .update({'photoUrl': FieldValue.delete()});
+      await widget.user.updatePhotoURL(null);
+      await _loadAllDetails();
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -116,7 +190,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
-    Navigator.of(context).popUntil((r) => r.isFirst);
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   Future<void> _deleteAccount() async {
@@ -138,7 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
           .delete();
       await widget.user.delete();
       if (!mounted) return;
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 
@@ -155,14 +229,23 @@ class _ProfilePageState extends State<ProfilePage> {
         padding: const EdgeInsets.all(16),
         children: [
           Center(
-            child: CircleAvatar(
-              radius: 50,
-              backgroundImage: widget.user.photoURL != null
-                  ? NetworkImage(widget.user.photoURL!)
-                  : null,
-              child: widget.user.photoURL == null
-                  ? const Icon(Icons.person, size: 50)
-                  : null,
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundImage: _photoUrl != null
+                      ? NetworkImage(_photoUrl!)
+                      : null,
+                  child: _photoUrl == null
+                      ? const Icon(Icons.person, size: 50)
+                      : null,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.camera_alt),
+                  onPressed: _pickOrChangePhoto,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -201,21 +284,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   const Text('Contact Information', style: TextStyle(fontWeight: FontWeight.bold)),
                   const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.person),
-                    title: const Text('Name'),
-                    subtitle: Text(_name),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.email),
-                    title: const Text('Email'),
-                    subtitle: Text(_email),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.phone),
-                    title: const Text('Phone'),
-                    subtitle: Text(_phone.isNotEmpty ? _phone : 'Not set'),
-                  ),
+                  ListTile(leading: const Icon(Icons.person), title: const Text('Name'), subtitle: Text(_name)),
+                  ListTile(leading: const Icon(Icons.email), title: const Text('Email'), subtitle: Text(_email)),
+                  ListTile(leading: const Icon(Icons.phone), title: const Text('Phone'), subtitle: Text(_phone.isNotEmpty ? _phone : 'Not set')),
                 ],
               ),
             ),
