@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'new_user_information.dart';  // NEW: import user info page
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -42,8 +43,11 @@ class _RegisterPageState extends State<RegisterPage> {
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
       });
+      // NEW: navigate to additional info page instead of HomePage
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomePage(user: cred.user!)),
+        MaterialPageRoute(
+          builder: (_) => NewUserInformation(user: cred.user!),
+        ),
       );
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,7 +89,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) return 'Enter an email';
-                    if (!RegExp(r"^[^@]+@[^@]+\.[^@]+").hasMatch(value)) return 'Enter a valid email';
+                    if (!RegExp(r"^[^@]+@[^@]+\.[^@]+$").hasMatch(value)) return 'Enter a valid email';
                     return null;
                   },
                 ),

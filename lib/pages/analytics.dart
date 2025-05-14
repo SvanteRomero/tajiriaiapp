@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:tajiri_ai/components/empty_page.dart';
 import 'package:tajiri_ai/models/transaction.dart' as my_tx;
-
-class MonthData {
-  final String month;
-  final double total;
-  MonthData({required this.month, required this.total});
-}
 
 class CategoryData {
   final String category;
@@ -56,10 +50,9 @@ class Analytics extends StatelessWidget {
               );
             }).toList();
 
-            final incomeData = _aggregateByMonth(txs, isIncome: true);
-            final expenseData = _aggregateByMonth(txs, isIncome: false);
             final topExpenses = _topCategories(txs, isIncome: false);
             final topIncomes = _topCategories(txs, isIncome: true);
+            final dailyData = _aggregateByDayOfWeek(txs);
 
             return CustomScrollView(
               slivers: [
@@ -85,38 +78,47 @@ class Analytics extends StatelessWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                    child: Text('Monthly Trends', style: Theme.of(context).textTheme.titleMedium),
+                    child: Text('Weekly Trends', style: Theme.of(context).textTheme.titleMedium),
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: SizedBox(
                     height: 250,
-                    child: Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: SfCartesianChart(
-                          primaryXAxis: CategoryAxis(
-                              majorGridLines: const MajorGridLines(width: 0)),
-                          primaryYAxis: NumericAxis(
-                              axisLine: const AxisLine(width: 0),
-                              majorTickLines: const MajorTickLines(size: 0)),
-                          legend: Legend(isVisible: true, position: LegendPosition.bottom),
-                          series: <LineSeries<MonthData, String>>[
-                            LineSeries<MonthData, String>(
-                                name: 'Income',
-                                color: Colors.green,
-                                dataSource: incomeData,
-                                xValueMapper: (d, _) => d.month,
-                                yValueMapper: (d, _) => d.total),
-                            LineSeries<MonthData, String>(
-                                name: 'Expense',
-                                color: Colors.red,
-                                dataSource: expenseData,
-                                xValueMapper: (d, _) => d.month,
-                                yValueMapper: (d, _) => d.total),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: LineChart(
+                        LineChartData(
+                          gridData: FlGridData(show: true, drawVerticalLine: false),
+                          titlesData: FlTitlesData(
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: true, reservedSize: 40),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) => Text(
+                                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][value.toInt()],
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: List.generate(7, (index) => FlSpot(index.toDouble(), (dailyData[index]['income'] ?? 0.0))),
+                              isCurved: true,
+                              color: Colors.green,
+                              barWidth: 3,
+                              dotData: FlDotData(show: false),
+                            ),
+                            LineChartBarData(
+                              spots: List.generate(7, (index) => FlSpot(index.toDouble(), (dailyData[index]['expense'] ?? 0.0))),
+                              isCurved: true,
+                              color: Colors.red,
+                              barWidth: 3,
+                              dotData: FlDotData(show: false),
+                            ),
                           ],
                         ),
                       ),
@@ -182,16 +184,18 @@ class Analytics extends StatelessWidget {
             Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Expanded(
-              child: SfCircularChart(
-                legend: Legend(isVisible: true, overflowMode: LegendItemOverflowMode.wrap),
-                series: <PieSeries<CategoryData, String>>[
-                  PieSeries<CategoryData, String>(
-                    dataSource: data,
-                    xValueMapper: (d, _) => d.category,
-                    yValueMapper: (d, _) => d.value,
-                    dataLabelSettings: const DataLabelSettings(isVisible: true),
-                  )
-                ],
+              child: PieChart(
+                PieChartData(
+                  sections: data.map((d) {
+                    final color = isExpense ? Colors.red : Colors.green;
+                    return PieChartSectionData(
+                      value: d.value,
+                      title: d.category,
+                      color: color.withOpacity(0.7),
+                      titleStyle: const TextStyle(fontSize: 12),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ],
@@ -200,17 +204,17 @@ class Analytics extends StatelessWidget {
     );
   }
 
-  List<MonthData> _aggregateByMonth(List<my_tx.Transaction> txs, {required bool isIncome}) {
-    final Map<String, double> totals = {};
-    for (var tx in txs.where((t) =>
-    (isIncome && t.type == my_tx.TransactionType.income) ||
-        (!isIncome && t.type == my_tx.TransactionType.expense))) {
-      final label = '${tx.date.month}/${tx.date.year}';
-      totals[label] = (totals[label] ?? 0) + tx.amount;
+  List<Map<String, double>> _aggregateByDayOfWeek(List<my_tx.Transaction> txs) {
+    final result = List.generate(7, (_) => {'income': 0.0, 'expense': 0.0});
+    for (var tx in txs) {
+      final weekday = tx.date.weekday - 1;
+      if (tx.type == my_tx.TransactionType.income) {
+        result[weekday]['income'] = result[weekday]['income']! + tx.amount;
+      } else {
+        result[weekday]['expense'] = result[weekday]['expense']! + tx.amount;
+      }
     }
-    final list = totals.entries.map((e) => MonthData(month: e.key, total: e.value)).toList();
-    list.sort((a, b) => a.month.compareTo(b.month));
-    return list;
+    return result;
   }
 
   List<CategoryData> _topCategories(List<my_tx.Transaction> txs, {required bool isIncome, int topN = 3}) {
