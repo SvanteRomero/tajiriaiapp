@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:tajiri_ai/pages/profile_page.dart';
 import '../models/transaction.dart' as my_model;
 import 'package:tajiri_ai/components/empty_page.dart';
 
@@ -17,15 +18,21 @@ class _HomeState extends State<Home> {
   bool _isLoading = true;
   List<my_model.Transaction> _transactions = [];
   String _displayName = '';
+  String _occupation = '';
+  int _age = 0;
+  double _goalAmount = 0;
+  double _weeklyGoalAmount = 0;
+  double _monthlyGoalAmount = 0;
+  double _goalProgress = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserName();
+    _fetchUserInfo();
     _fetchTransactions();
   }
 
-  Future<void> _fetchUserName() async {
+  Future<void> _fetchUserInfo() async {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -33,9 +40,15 @@ class _HomeState extends State<Home> {
           .get();
       if (doc.exists) {
         final data = doc.data();
-        if (data != null && data.containsKey('name')) {
+        if (data != null) {
           setState(() {
-            _displayName = data['name'] as String;
+            _displayName = data['name'] ?? '';
+            _occupation = data['occupation'] ?? '';
+            _age = data['age'] ?? 0;
+            _weeklyGoalAmount = (data['goal']?['weekly'] ?? 0).toDouble();
+            _monthlyGoalAmount = (data['goal']?['monthly'] ?? 0).toDouble();
+            _goalAmount = _monthlyGoalAmount;
+            _goalProgress = _goalAmount > 0 ? (_currentBalance / _goalAmount).clamp(0, 1) : 0;
           });
         }
       }
@@ -68,6 +81,7 @@ class _HomeState extends State<Home> {
       setState(() {
         _transactions = transactions;
         _isLoading = false;
+        _goalProgress = _goalAmount > 0 ? (_currentBalance / _goalAmount).clamp(0, 1) : 0;
       });
     } catch (_) {
       setState(() => _isLoading = false);
@@ -205,43 +219,75 @@ class _HomeState extends State<Home> {
         : ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Card(
-          color: const Color(0xFF1976D2),
-          elevation: 4,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hi, ${_displayName.isNotEmpty ? _displayName : 'User'}',
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                const Row(
-                  children: [
-                    Icon(Icons.account_balance_wallet,
-                        size: 32, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'Current Balance',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _formatCurrency(_currentBalance),
-                  style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white),
-                ),
-              ],
+        GestureDetector(
+          onTap: () {
+
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ProfilePage(user: widget.user),
+              ),
+            );
+          },
+          child: Card(
+            color: const Color(0xFF1976D2),
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Hi, ${_displayName.isNotEmpty ? _displayName : 'User'}',
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 16),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(width: 20,),
+                      Text(
+                        '$_occupation',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Row(
+                    children: [
+                      Icon(Icons.account_balance_wallet,
+                          size: 32, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Current Balance',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _formatCurrency(_currentBalance),
+                    style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: _goalProgress,
+                    backgroundColor: Colors.white24,
+                    color: Colors.greenAccent,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Goal Progress: ${(_goalProgress * 100).toStringAsFixed(1)}%',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
