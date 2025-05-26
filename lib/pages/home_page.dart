@@ -30,6 +30,9 @@ class _HomePageState extends State<HomePage> {
         case 2:
           pageTitle = "Advisory";
           break;
+        case 3:
+          pageTitle = "Profile";
+          break;
       }
     });
   }
@@ -45,6 +48,9 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(pageTitle),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
         actions: [
           IconButton(
             icon: const Icon(Icons.person),
@@ -63,8 +69,14 @@ class _HomePageState extends State<HomePage> {
         onTap: setIndex,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: "Analytics"),
-          BottomNavigationBarItem(icon: Icon(Icons.lightbulb), label: "Advisory"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: "Analytics",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.lightbulb),
+            label: "Advisory",
+          ),
         ],
       ),
       body: pages[selectedIndex],
