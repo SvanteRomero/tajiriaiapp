@@ -1,17 +1,20 @@
 # Advisory Page (advisory.dart)
 
 ## Overview
+
 This file implements the financial advisory interface for the Tajiri AI application. It analyzes user transactions and provides personalized financial advice and recommendations for better money management.
 
 ## Key Components
 
 ### Advisory Widget
+
 ```dart
 class Advisory extends StatefulWidget {
   final User user;
   const Advisory({super.key, required this.user});
 }
 ```
+
 - Financial advice
 - Transaction analysis
 - Personalized tips
@@ -19,9 +22,11 @@ class Advisory extends StatefulWidget {
 ### State Management
 
 #### Transaction Data
+
 ```dart
 List<Transaction> transactions = [];
 ```
+
 - Transaction history
 - Analysis base
 - Pattern tracking
@@ -29,6 +34,7 @@ List<Transaction> transactions = [];
 ## Core Functionality
 
 ### Data Analysis
+
 ```dart
 Future<void> _analyzeTransactions() async {
   // Load transactions
@@ -36,11 +42,13 @@ Future<void> _analyzeTransactions() async {
   // Generate advice
 }
 ```
+
 - Pattern detection
 - Trend analysis
 - Advice generation
 
 ### Advice Generation
+
 ```dart
 List<String> _generateAdvice() {
   // Analyze spending
@@ -48,6 +56,7 @@ List<String> _generateAdvice() {
   // Create tips
 }
 ```
+
 - Personalized tips
   - Spending patterns
   - Saving opportunities
@@ -56,6 +65,7 @@ List<String> _generateAdvice() {
 ## UI Components
 
 ### Empty State
+
 ```dart
 EmptyPage(
   pageIconData: Icons.lightbulb_outline_rounded,
@@ -63,11 +73,13 @@ EmptyPage(
   pageDescription: "Please provide some financial details to get advisory",
 )
 ```
+
 - No data handling
 - User guidance
 - Clear messaging
 
 ### Advisory Content
+
 ```dart
 ListView(
   children: [
@@ -77,6 +89,7 @@ ListView(
   ],
 )
 ```
+
 - Clear presentation
 - Actionable items
 - Visual organization
@@ -128,6 +141,7 @@ ListView(
 ## Implementation Notes
 
 1. **Analysis Structure**
+
    ```dart
    // Transaction analysis
    void _analyzeTransactions() {
@@ -136,11 +150,13 @@ ListView(
      // Trend identification
    }
    ```
+
    - Clean processing
    - Clear patterns
    - Useful insights
 
 2. **Advice Structure**
+
    ```dart
    // Advice generation
    List<String> _generateAdvice() {
@@ -149,11 +165,13 @@ ListView(
      // Tip creation
    }
    ```
+
    - Clear tips
    - Actionable items
    - Good context
 
 3. **UI Layout**
+
    ```dart
    // Advisory display
    ListView(
@@ -164,11 +182,13 @@ ListView(
      ],
    )
    ```
+
    - Clean layout
    - Clear sections
    - Good organization
 
 ## Notes
+
 - Financial advisory
 - Pattern analysis
 - Clear advice

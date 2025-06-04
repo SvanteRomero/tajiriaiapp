@@ -1,17 +1,20 @@
 # Home Page Container (home_page.dart)
 
 ## Overview
+
 This file implements the main container and navigation structure for the Tajiri AI application. It manages the bottom navigation bar and handles switching between different main sections of the app.
 
 ## Key Components
 
 ### HomePage Widget
+
 ```dart
 class HomePage extends StatefulWidget {
   final User user;
   const HomePage({super.key, required this.user});
 }
 ```
+
 - Main container
 - Navigation management
 - User context
@@ -19,10 +22,12 @@ class HomePage extends StatefulWidget {
 ### State Management
 
 #### Navigation State
+
 ```dart
 int selectedIndex = 0;
 String pageTitle = "Home";
 ```
+
 - Current page
 - Title updates
 - Navigation tracking
@@ -30,6 +35,7 @@ String pageTitle = "Home";
 ## Core Functionality
 
 ### Page Management
+
 ```dart
 final List<Widget> pages = [
   Home(user: widget.user),
@@ -37,11 +43,13 @@ final List<Widget> pages = [
   Advisory(user: widget.user),
 ];
 ```
+
 - Main sections
 - User context
 - Page organization
 
 ### Navigation Control
+
 ```dart
 void setIndex(int index) {
   setState(() {
@@ -54,6 +62,7 @@ void setIndex(int index) {
   });
 }
 ```
+
 - Page selection
 - Title updates
 - State management
@@ -61,6 +70,7 @@ void setIndex(int index) {
 ## UI Components
 
 ### App Bar
+
 ```dart
 AppBar(
   title: Text(pageTitle),
@@ -72,11 +82,13 @@ AppBar(
   ],
 )
 ```
+
 - Title display
 - Profile access
 - Clean layout
 
 ### Bottom Navigation
+
 ```dart
 BottomNavigationBar(
   currentIndex: selectedIndex,
@@ -97,6 +109,7 @@ BottomNavigationBar(
   ],
 )
 ```
+
 - Section navigation
 - Visual feedback
 - Clear labels
@@ -148,6 +161,7 @@ BottomNavigationBar(
 ## Implementation Notes
 
 1. **Page Structure**
+
    ```dart
    Scaffold(
      appBar: AppBar(...),
@@ -155,11 +169,13 @@ BottomNavigationBar(
      body: pages[selectedIndex],
    )
    ```
+
    - Clean layout
    - Clear navigation
    - Proper structure
 
 2. **Navigation Logic**
+
    ```dart
    void setIndex(int index) {
      // Update index
@@ -167,22 +183,26 @@ BottomNavigationBar(
      // Refresh state
    }
    ```
+
    - Clean updates
    - Clear flow
    - Good feedback
 
 3. **User Context**
+
    ```dart
    // Pass user to all pages
    Home(user: user)
    Analytics(user: user)
    Advisory(user: user)
    ```
+
    - Context passing
    - Data access
    - State preservation
 
 ## Notes
+
 - Main container page
 - Navigation management
 - User context handling

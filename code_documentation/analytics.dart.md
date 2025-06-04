@@ -1,11 +1,13 @@
 # Analytics Page (analytics.dart)
 
 ## Overview
+
 This file implements the financial analytics interface for the Tajiri AI application. It provides visual representations of transaction data through charts and metrics, helping users understand their financial patterns.
 
 ## Key Components
 
 ### CategoryData Class
+
 ```dart
 class CategoryData {
   final String category;
@@ -13,17 +15,20 @@ class CategoryData {
   CategoryData({required this.category, required this.value});
 }
 ```
+
 - Data structure
 - Category totals
 - Value tracking
 
 ### Analytics Widget
+
 ```dart
 class Analytics extends StatelessWidget {
   final User user;
   const Analytics({Key? key, required this.user}) : super(key: key);
 }
 ```
+
 - Visual analytics
 - Real-time data
 - Interactive charts
@@ -31,6 +36,7 @@ class Analytics extends StatelessWidget {
 ## Core Functionality
 
 ### Data Processing
+
 ```dart
 List<CategoryData> _topCategories(List<Transaction> txs, {
   required bool isIncome,
@@ -41,11 +47,13 @@ List<CategoryData> _topCategories(List<Transaction> txs, {
   // Return top N
 }
 ```
+
 - Category analysis
 - Data aggregation
 - Top metrics
 
 ### Time Analysis
+
 ```dart
 List<Map<String, double>> _aggregateByDayOfWeek(List<Transaction> txs) {
   // Group by day
@@ -53,6 +61,7 @@ List<Map<String, double>> _aggregateByDayOfWeek(List<Transaction> txs) {
   // Format data
 }
 ```
+
 - Daily trends
 - Weekly patterns
 - Clear visualization
@@ -60,6 +69,7 @@ List<Map<String, double>> _aggregateByDayOfWeek(List<Transaction> txs) {
 ## UI Components
 
 ### Metric Cards
+
 ```dart
 Widget _styledMetricCard(String title, String value, String label, Color accent) {
   return Card(
@@ -69,6 +79,7 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
   );
 }
 ```
+
 - Key metrics
 - Visual emphasis
 - Clear data
@@ -76,6 +87,7 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
 ### Charts
 
 1. **Line Chart**
+
    ```dart
    LineChart(
      LineChartData(
@@ -85,11 +97,13 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
      ),
    )
    ```
+
    - Time trends
    - Dual metrics
    - Visual patterns
 
 2. **Pie Charts**
+
    ```dart
    Widget _styledChartCard(String title, List<CategoryData> data, {
      required bool isExpense
@@ -99,6 +113,7 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
      // Clear labels
    }
    ```
+
    - Category splits
    - Visual ratios
    - Clear segments
@@ -150,6 +165,7 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
 ## Implementation Notes
 
 1. **Data Structure**
+
    ```dart
    // Category data
    Map<String, double> totals = {};
@@ -157,11 +173,13 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
    // Time series
    List<Map<String, double>> dailyData;
    ```
+
    - Clean organization
    - Efficient tracking
    - Easy updates
 
 2. **Chart Setup**
+
    ```dart
    // Line chart
    LineChartData(
@@ -176,11 +194,13 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
      centerSpaceRadius: 40,
    )
    ```
+
    - Clear configuration
    - Good defaults
    - Easy customization
 
 3. **Layout Structure**
+
    ```dart
    CustomScrollView(
      slivers: [
@@ -190,11 +210,13 @@ Widget _styledMetricCard(String title, String value, String label, Color accent)
      ],
    )
    ```
+
    - Clean sections
    - Clear flow
    - Good organization
 
 ## Notes
+
 - Financial analytics
 - Visual insights
 - Real-time updates

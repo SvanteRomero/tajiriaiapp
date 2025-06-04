@@ -1,17 +1,20 @@
 # New User Information Page (new_user_information.dart)
 
 ## Overview
+
 This file implements the onboarding form for new users in the Tajiri AI application. It collects essential user information and initial savings goals after registration.
 
 ## Key Components
 
 ### NewUserInformation Widget
+
 ```dart
 class NewUserInformation extends StatefulWidget {
   final User user;
   const NewUserInformation({Key? key, required this.user}) : super(key: key);
 }
 ```
+
 - Onboarding form
 - User data collection
 - Goal setting
@@ -19,22 +22,26 @@ class NewUserInformation extends StatefulWidget {
 ### State Management
 
 #### User Information
+
 ```dart
 String? _gender;
 int? _age;
 String _occupation = 'Student';
 double _monthlyIncome = 0;
 ```
+
 - Basic profile
 - Demographics
 - Financial info
 
 #### Financial Goals
+
 ```dart
 double _weeklyGoal = 0;
 double _monthlyGoal = 0;
 String? _financialGoal;
 ```
+
 - Savings targets
 - Goal tracking
 - Financial planning
@@ -42,6 +49,7 @@ String? _financialGoal;
 ## Core Functionality
 
 ### Data Collection
+
 ```dart
 Future<void> _saveUserInformation() async {
   // Validate form
@@ -50,11 +58,13 @@ Future<void> _saveUserInformation() async {
   // Navigate to home
 }
 ```
+
 - Form validation
 - Data storage
 - Navigation flow
 
 ### Goal Setting
+
 ```dart
 Future<void> _setInitialGoals() async {
   // Calculate goals
@@ -62,6 +72,7 @@ Future<void> _setInitialGoals() async {
   // Update profile
 }
 ```
+
 - Goal calculation
 - Data persistence
 - Profile updates
@@ -69,6 +80,7 @@ Future<void> _setInitialGoals() async {
 ## UI Components
 
 ### Form Layout
+
 ```dart
 Form(
   key: _formKey,
@@ -81,6 +93,7 @@ Form(
   ),
 )
 ```
+
 - Clean structure
 - Clear sections
 - Good organization
@@ -88,6 +101,7 @@ Form(
 ### Input Sections
 
 1. **Personal Information**
+
    ```dart
    Column(
      children: [
@@ -97,11 +111,13 @@ Form(
      ],
    )
    ```
+
    - Basic details
    - Clear inputs
    - Good validation
 
 2. **Financial Information**
+
    ```dart
    Column(
      children: [
@@ -111,6 +127,7 @@ Form(
      ],
    )
    ```
+
    - Income details
    - Goal setting
    - Clear inputs
@@ -162,6 +179,7 @@ Form(
 ## Implementation Notes
 
 1. **Form Structure**
+
    ```dart
    Form(
      key: _formKey,
@@ -172,11 +190,13 @@ Form(
      ),
    )
    ```
+
    - Scrollable layout
    - Clear sections
    - Proper spacing
 
 2. **Input Validation**
+
    ```dart
    validator: (val) {
      // Required check
@@ -184,11 +204,13 @@ Form(
      // Range verification
    }
    ```
+
    - Clear rules
    - Helpful messages
    - Proper checks
 
 3. **Data Submission**
+
    ```dart
    Future<void> _submit() async {
      // Form validation
@@ -196,11 +218,13 @@ Form(
      // Navigation
    }
    ```
+
    - Clean process
    - Error handling
    - User feedback
 
 ## Notes
+
 - Essential onboarding
 - Complete data collection
 - Clear user flow

@@ -1,17 +1,20 @@
 # Home Dashboard (home.dart)
 
 ## Overview
+
 This file implements the main dashboard view for the Tajiri AI application. It displays the user's financial overview, recent transactions, and provides quick access to key features.
 
 ## Key Components
 
 ### Home Widget
+
 ```dart
 class Home extends StatefulWidget {
   final User user;
   const Home({Key? key, required this.user}) : super(key: key);
 }
 ```
+
 - Main dashboard
 - Financial overview
 - Quick actions
@@ -19,12 +22,14 @@ class Home extends StatefulWidget {
 ### State Management
 
 #### Financial Data
+
 ```dart
 double _balance = 0;
 double _weeklyGoal = 0;
 double _monthlyGoal = 0;
 List<Transaction> _recentTransactions = [];
 ```
+
 - Balance tracking
 - Goal monitoring
 - Recent activity
@@ -32,6 +37,7 @@ List<Transaction> _recentTransactions = [];
 ## Core Functionality
 
 ### Data Loading
+
 ```dart
 Future<void> _loadData() async {
   // Load balance
@@ -39,11 +45,13 @@ Future<void> _loadData() async {
   // Load transactions
 }
 ```
+
 - Real-time updates
 - Data aggregation
 - State management
 
 ### Transaction Management
+
 ```dart
 Future<void> _addTransaction() async {
   // Show transaction form
@@ -51,6 +59,7 @@ Future<void> _addTransaction() async {
   // Update state
 }
 ```
+
 - Transaction creation
 - Data validation
 - State updates
@@ -58,6 +67,7 @@ Future<void> _addTransaction() async {
 ## UI Components
 
 ### Balance Card
+
 ```dart
 Card(
   child: Column(
@@ -69,11 +79,13 @@ Card(
   ),
 )
 ```
+
 - Current balance
 - Goal tracking
 - Visual feedback
 
 ### Transaction List
+
 ```dart
 ListView.builder(
   itemCount: _recentTransactions.length,
@@ -84,11 +96,13 @@ ListView.builder(
   },
 )
 ```
+
 - Recent activity
 - Transaction details
 - Clear layout
 
 ### Quick Actions
+
 ```dart
 Row(
   children: [
@@ -98,6 +112,7 @@ Row(
   ],
 )
 ```
+
 - Easy access
 - Common actions
 - Clear layout
@@ -149,6 +164,7 @@ Row(
 ## Implementation Notes
 
 1. **Data Structure**
+
    ```dart
    // Financial data
    double balance;
@@ -158,11 +174,13 @@ Row(
    // Transaction list
    List<Transaction> transactions;
    ```
+
    - Clear organization
    - Efficient tracking
    - Easy updates
 
 2. **UI Layout**
+
    ```dart
    CustomScrollView(
      slivers: [
@@ -172,11 +190,13 @@ Row(
      ],
    )
    ```
+
    - Clean structure
    - Clear sections
    - Good organization
 
 3. **State Updates**
+
    ```dart
    setState(() {
      // Update balance
@@ -184,11 +204,13 @@ Row(
      // Refresh list
    });
    ```
+
    - Clean updates
    - Clear flow
    - Good feedback
 
 ## Notes
+
 - Main dashboard view
 - Financial overview
 - Transaction management

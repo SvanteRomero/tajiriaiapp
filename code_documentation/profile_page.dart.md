@@ -1,17 +1,20 @@
 # Profile Page (profile_page.dart)
 
 ## Overview
+
 This file implements the user profile management interface for the Tajiri AI application. It allows users to view and update their personal information, manage financial goals, and handle account settings.
 
 ## Key Components
 
 ### ProfilePage Widget
+
 ```dart
 class ProfilePage extends StatefulWidget {
   final User user;
   const ProfilePage({Key? key, required this.user}) : super(key: key);
 }
 ```
+
 - Profile management
 - Settings control
 - Account handling
@@ -19,6 +22,7 @@ class ProfilePage extends StatefulWidget {
 ### State Management
 
 #### User Data
+
 ```dart
 String _name = '';
 String _email = '';
@@ -26,16 +30,19 @@ String _phone = '';
 String? _photoUrl;
 double _monthlyIncome = 0;
 ```
+
 - Personal info
 - Contact details
 - Financial data
 
 #### Goals Data
+
 ```dart
 double _weeklyGoal = 0;
 double _monthlyGoal = 0;
 String? _financialGoal;
 ```
+
 - Savings targets
 - Goal tracking
 - Progress monitoring
@@ -43,6 +50,7 @@ String? _financialGoal;
 ## Core Functionality
 
 ### Profile Management
+
 ```dart
 Future<void> _updateProfile() async {
   // Validate form
@@ -50,11 +58,13 @@ Future<void> _updateProfile() async {
   // Refresh state
 }
 ```
+
 - Data validation
 - Profile updates
 - State refresh
 
 ### Goal Management
+
 ```dart
 Future<void> _updateGoals() async {
   // Validate goals
@@ -62,11 +72,13 @@ Future<void> _updateGoals() async {
   // Update display
 }
 ```
+
 - Goal setting
 - Progress tracking
 - Data persistence
 
 ### Account Actions
+
 ```dart
 Future<void> _signOut() async {
   // Clear session
@@ -80,6 +92,7 @@ Future<void> _deleteAccount() async {
   // Clean up auth
 }
 ```
+
 - Session handling
 - Account deletion
 - Clean navigation
@@ -87,6 +100,7 @@ Future<void> _deleteAccount() async {
 ## UI Components
 
 ### Profile Header
+
 ```dart
 Card(
   child: Column(
@@ -98,6 +112,7 @@ Card(
   ),
 )
 ```
+
 - Visual identity
 - Basic info
 - Quick actions
@@ -105,6 +120,7 @@ Card(
 ### Settings Sections
 
 1. **Personal Information**
+
    ```dart
    ListTile(
      title: Text('Name'),
@@ -112,11 +128,13 @@ Card(
      onTap: _editName,
    )
    ```
+
    - Basic details
    - Edit options
    - Clear layout
 
 2. **Financial Goals**
+
    ```dart
    Card(
      child: Column(
@@ -128,6 +146,7 @@ Card(
      ),
    )
    ```
+
    - Goal display
    - Progress tracking
    - Edit options
@@ -179,6 +198,7 @@ Card(
 ## Implementation Notes
 
 1. **Layout Structure**
+
    ```dart
    SingleChildScrollView(
      child: Column(
@@ -190,11 +210,13 @@ Card(
      ),
    )
    ```
+
    - Clean layout
    - Clear sections
    - Good organization
 
 2. **Data Updates**
+
    ```dart
    Future<void> _update() async {
      // Show loading
@@ -202,11 +224,13 @@ Card(
      // Refresh state
    }
    ```
+
    - Safe process
    - Error handling
    - User feedback
 
 3. **Account Actions**
+
    ```dart
    Future<void> _handleAction() async {
      // Show confirmation
@@ -214,11 +238,13 @@ Card(
      // Handle result
    }
    ```
+
    - Safe handling
    - Clear feedback
    - Clean flow
 
 ## Notes
+
 - Profile management
 - Goal tracking
 - Account handling

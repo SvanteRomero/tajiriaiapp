@@ -1,16 +1,19 @@
 # Register Page (register_page.dart)
 
 ## Overview
+
 This file implements the user registration interface for the Tajiri AI application. It handles new user account creation with email/password and Google Sign-In options, including form validation and error handling.
 
 ## Key Components
 
 ### RegisterPage Widget
+
 ```dart
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
 }
 ```
+
 - Registration form
 - Authentication handling
 - Error management
@@ -18,6 +21,7 @@ class RegisterPage extends StatefulWidget {
 ### State Management
 
 #### Form Controls
+
 ```dart
 final _formKey = GlobalKey<FormState>();
 final TextEditingController _emailController;
@@ -25,6 +29,7 @@ final TextEditingController _passwordController;
 final TextEditingController _confirmPasswordController;
 bool _isLoading = false;
 ```
+
 - Input management
 - Validation state
 - Loading tracking
@@ -32,6 +37,7 @@ bool _isLoading = false;
 ## Core Functionality
 
 ### Email Registration
+
 ```dart
 Future<void> _registerWithEmail() async {
   // Form validation
@@ -40,11 +46,13 @@ Future<void> _registerWithEmail() async {
   // Profile creation
 }
 ```
+
 - Data validation
 - Account creation
 - Error handling
 
 ### Google Sign-Up
+
 ```dart
 Future<void> _registerWithGoogle() async {
   // Google auth
@@ -53,6 +61,7 @@ Future<void> _registerWithGoogle() async {
   // Navigation
 }
 ```
+
 - OAuth flow
 - Account creation
 - Profile setup
@@ -60,6 +69,7 @@ Future<void> _registerWithGoogle() async {
 ## UI Components
 
 ### Registration Form
+
 ```dart
 Form(
   key: _formKey,
@@ -74,6 +84,7 @@ Form(
   ),
 )
 ```
+
 - Input fields
 - Action buttons
 - Loading states
@@ -81,6 +92,7 @@ Form(
 ### Input Fields
 
 1. **Email Input**
+
    ```dart
    CustomInput(
      controller: _emailController,
@@ -88,11 +100,13 @@ Form(
      validator: InputValidators.email,
    )
    ```
+
    - Email validation
    - Error messages
    - Clear feedback
 
 2. **Password Fields**
+
    ```dart
    CustomInput(
      controller: _passwordController,
@@ -101,6 +115,7 @@ Form(
      validator: InputValidators.password,
    )
    ```
+
    - Secure entry
    - Validation rules
    - Match checking
@@ -152,6 +167,7 @@ Form(
 ## Implementation Notes
 
 1. **Form Structure**
+
    ```dart
    SingleChildScrollView(
      child: Form(
@@ -161,11 +177,13 @@ Form(
      ),
    )
    ```
+
    - Clean layout
    - Clear sections
    - Good spacing
 
 2. **Authentication Flow**
+
    ```dart
    try {
      // Validate form
@@ -176,11 +194,13 @@ Form(
      // Show message
    }
    ```
+
    - Safe process
    - Error recovery
    - Clear feedback
 
 3. **Loading States**
+
    ```dart
    setState(() => _isLoading = true);
    try {
@@ -189,11 +209,13 @@ Form(
      setState(() => _isLoading = false);
    }
    ```
+
    - Clear feedback
    - Safe updates
    - Good UX
 
 ## Notes
+
 - Registration interface
 - Multiple methods
 - Clean implementation
