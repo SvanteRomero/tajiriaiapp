@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
 
-part 'transaction_model_new.g.dart';
+part 'transaction_model.g.dart';
 
 @HiveType(typeId: 0)
 class HiveTransaction extends HiveObject {
@@ -28,12 +28,6 @@ class HiveTransaction extends HiveObject {
   @HiveField(7)
   bool isSynced;
 
-  @HiveField(8)
-  final String mainCategory;
-
-  @HiveField(9)
-  final String subCategory;
-
   HiveTransaction({
     required this.id,
     required this.username,
@@ -42,8 +36,6 @@ class HiveTransaction extends HiveObject {
     required this.date,
     required this.type,
     required this.userId,
-    required this.mainCategory,
-    required this.subCategory,
     this.isSynced = false,
   });
 
@@ -54,8 +46,6 @@ class HiveTransaction extends HiveObject {
     'date': date,
     'type': type,
     'userId': userId,
-    'mainCategory': mainCategory,
-    'subCategory': subCategory,
   };
 
   factory HiveTransaction.fromFirestore(Map<String, dynamic> data, String id, String userId) {
@@ -67,8 +57,6 @@ class HiveTransaction extends HiveObject {
       date: (data['date'] as DateTime),
       type: data['type'] ?? 'expense',
       userId: userId,
-      mainCategory: data['mainCategory'] ?? 'Other',
-      subCategory: data['subCategory'] ?? 'Miscellaneous',
       isSynced: true,
     );
   }

@@ -1,79 +1,111 @@
 import 'package:flutter/material.dart';
+import '../models/hive/transaction_model.dart';
 import 'package:intl/intl.dart';
-import '../models/transaction.dart' as my_model;
 
 class TransactionItem extends StatelessWidget {
-  final my_model.Transaction transaction;
-  final String Function(double) formatCurrency;
-  final Future<bool> Function() onDelete;
-  final VoidCallback onDismissed;
+  final HiveTransaction transaction;
+  final VoidCallback? onTap;
+  final _currencyFormat = NumberFormat.currency(symbol: 'Tsh ', decimalDigits: 0);
 
-  const TransactionItem({
+  TransactionItem({
     Key? key,
     required this.transaction,
-    required this.formatCurrency,
-    required this.onDelete,
-    required this.onDismissed,
+    this.onTap,
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) => Dismissible(
-    key: Key(transaction.date.toIso8601String() + transaction.description),
-    direction: DismissDirection.endToStart,
-    background: Container(
-      alignment: Alignment.centerRight,
-      padding: const EdgeInsets.only(right: 20.0),
-      color: Colors.red,
-      child: const Icon(Icons.delete, color: Colors.white),
-    ),
-    confirmDismiss: (_) async {
-      final shouldDelete = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Transaction'),
-          content: const Text('Are you sure you want to delete this transaction?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+  Widget build(BuildContext context) {
+    final isIncome = transaction.type == 'income';
+    final color = isIncome ? Colors.green.shade700 : Colors.red.shade700;
+    final icon = isIncome ? Icons.add_circle : Icons.remove_circle;
+    final sign = isIncome ? '+' : '-';
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          backgroundColor: color.withOpacity(0.1),
+          child: Icon(icon, color: color),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                transaction.description,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            Text(
+              '$sign${_currencyFormat.format(transaction.amount)}',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
-      );
-      
-      if (shouldDelete ?? false) {
-        final success = await onDelete();
-        if (success) {
-          onDismissed();
-          return true;
-        }
-      }
-      return false;
-    },
-    child: ListTile(
-      leading: Icon(
-        transaction.type == my_model.TransactionType.income
-            ? Icons.arrow_downward
-            : Icons.arrow_upward,
-        color: transaction.type == my_model.TransactionType.income
-            ? Colors.green
-            : Colors.red,
-      ),
-      title: Text(transaction.description),
-      subtitle: Text(DateFormat.yMMMd().format(transaction.date)),
-      trailing: Text(
-        '${transaction.type == my_model.TransactionType.income ? '+' : '-'} ${formatCurrency(transaction.amount)}',
-        style: TextStyle(
-          color: transaction.type == my_model.TransactionType.income
-              ? Colors.green
-              : Colors.red,
-          fontWeight: FontWeight.bold,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  Icons.category,
+                  size: 16,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${transaction.mainCategory} › ${transaction.subCategory}',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  DateFormat('MMM d, y').format(transaction.date),
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+                if (!transaction.isSynced) ...[
+                  const Spacer(),
+                  Icon(
+                    Icons.sync_problem,
+                    size: 16,
+                    color: Colors.orange.shade700,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Not synced',
+                    style: TextStyle(
+                      color: Colors.orange.shade700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
