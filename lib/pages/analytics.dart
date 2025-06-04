@@ -60,13 +60,15 @@ class _AnalyticsState extends State<Analytics> with SingleTickerProviderStateMix
             final txs = snapshot.data!.docs.map((doc) {
               final d = doc.data()! as Map<String, dynamic>;
               return my_tx.Transaction(
-                username: d['username'],
-                description: d['description'],
+                username: d['username'] ?? '',
+                description: d['description'] ?? '',
                 amount: (d['amount'] as num).toDouble(),
                 date: (d['date'] as Timestamp).toDate(),
                 type: d['type'] == 'income'
                     ? my_tx.TransactionType.income
                     : my_tx.TransactionType.expense,
+                mainCategory: d['mainCategory'] ?? 'Other',
+                subCategory: d['subCategory'] ?? 'Miscellaneous',
               );
             }).toList();
 

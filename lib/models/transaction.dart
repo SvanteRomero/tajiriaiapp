@@ -24,6 +24,12 @@ class Transaction {
   /// Used for categorization and calculations
   final TransactionType type;
 
+  /// Main category of the transaction (e.g., "Housing", "Transportation")
+  final String mainCategory;
+
+  /// Subcategory of the transaction (e.g., "Rent", "Fuel")
+  final String subCategory;
+
   /// Creates a new Transaction instance
   /// 
   /// Required parameters:
@@ -32,24 +38,41 @@ class Transaction {
   /// - [amount]: Monetary value
   /// - [date]: When the transaction occurred
   /// - [type]: Whether it's an income or expense
+  /// - [mainCategory]: Primary category of the transaction
+  /// - [subCategory]: Secondary category of the transaction
   Transaction({
     required this.username,
     required this.description,
     required this.amount,
     required this.date,
     required this.type,
+    required this.mainCategory,
+    required this.subCategory,
   });
+
+  /// Creates a Transaction from a Firestore document
+  factory Transaction.fromFirestore(Map<String, dynamic> data) {
+    return Transaction(
+      username: data['username'] ?? '',
+      description: data['description'] ?? '',
+      amount: (data['amount'] as num).toDouble(),
+      date: (data['date'] as DateTime),
+      type: data['type'] == 'income' ? TransactionType.income : TransactionType.expense,
+      mainCategory: data['mainCategory'] ?? 'Other',
+      subCategory: data['subCategory'] ?? 'Miscellaneous',
+    );
+  }
+
+  /// Converts the Transaction to a Map for Firestore storage
+  Map<String, dynamic> toFirestore() {
+    return {
+      'username': username,
+      'description': description,
+      'amount': amount,
+      'date': date,
+      'type': type == TransactionType.income ? 'income' : 'expense',
+      'mainCategory': mainCategory,
+      'subCategory': subCategory,
+    };
+  }
 }
-
-// Example transaction for testing purposes
-/// Sample transaction representing a salary payment
-Transaction transaction = Transaction(
-  username: "user1",
-  description: "Salary",
-  amount: 5000,
-  date: DateTime.now(),
-  type: TransactionType.income
-);
-
-/// List of transactions for testing and development
-final List<Transaction> transactions = [transaction];
