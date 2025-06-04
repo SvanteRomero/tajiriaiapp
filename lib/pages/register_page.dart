@@ -1,10 +1,17 @@
+/// A registration page that provides both email/password and Google Sign-In functionality.
+/// This page handles new user registration with proper form validation, Firebase authentication,
+/// and Firestore data storage. It includes modern UI elements with proper error handling and
+/// loading states.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'home_page.dart';
-import 'new_user_information.dart'; // NEW: import user info page
+import 'new_user_information.dart';
 
+/// A stateful widget that represents the registration screen.
+/// Manages user input, validation, and authentication state.
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
 
@@ -13,18 +20,25 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  // Form key for validation
   final _formKey = GlobalKey<FormState>();
+  
+  // Controllers for form fields
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  
+  // Google Sign-In instance with email and profile scopes
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  
+  // Loading state flag for UI feedback
   bool _isLoading = false;
 
   @override
   void dispose() {
+    // Clean up controllers when the widget is disposed
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -33,15 +47,28 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
+  /// Handles the email/password registration process.
+  /// 
+  /// This method:
+  /// 1. Validates the form
+  /// 2. Creates a new user with Firebase Auth
+  /// 3. Stores additional user data in Firestore
+  /// 4. Navigates to the new user information page on success
+  /// 5. Shows error messages if registration fails
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+    
     setState(() => _isLoading = true);
+    
     try {
+      // Create new user account with Firebase Auth
       UserCredential cred = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
+
+      // Store additional user information in Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(cred.user!.uid)
@@ -50,30 +77,44 @@ class _RegisterPageState extends State<RegisterPage> {
             'email': _emailController.text.trim(),
             'phone': _phoneController.text.trim(),
           });
-      // NEW: navigate to additional info page instead of HomePage
+
+      // Navigate to additional info page for new users
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => NewUserInformation(user: cred.user!)),
       );
     } on FirebaseAuthException catch (e) {
+      // Handle Firebase Auth specific errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Registration failed')),
       );
     } on FirebaseException catch (e) {
+      // Handle Firestore database errors
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.message ?? 'Database error')));
     } finally {
+      // Reset loading state if widget is still mounted
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  /// Handles the Google Sign-In process.
+  /// 
+  /// This method:
+  /// 1. Signs out any existing Google session
+  /// 2. Initiates Google Sign-In flow
+  /// 3. Creates Firebase credentials from Google authentication
+  /// 4. Signs in to Firebase with the credentials
+  /// 5. Checks if user is new and stores additional data if needed
+  /// 6. Navigates to appropriate page based on user status
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
+    
     try {
-      // First, sign out to clear any existing state
+      // Clear existing Google Sign-In state
       await _googleSignIn.signOut();
 
-      // Configure Google Sign In
+      // Initiate Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         if (mounted) {
@@ -85,17 +126,17 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
 
-      // Get auth details from request
+      // Get authentication details from Google Sign-In
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      // Create a new credential
+      // Create Firebase credentials
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase with the Google credential
+      // Sign in to Firebase
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithCredential(credential);
 
@@ -103,7 +144,7 @@ class _RegisterPageState extends State<RegisterPage> {
         throw Exception('Failed to get user from credential');
       }
 
-      // Check if this is a new user
+      // Check if user exists in Firestore
       final userDoc =
           await FirebaseFirestore.instance
               .collection('users')
@@ -111,7 +152,7 @@ class _RegisterPageState extends State<RegisterPage> {
               .get();
 
       if (!userDoc.exists) {
-        // Create user document for new Google sign-in
+        // Create new user document for first-time Google sign-ins
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userCredential.user!.uid)
@@ -124,6 +165,7 @@ class _RegisterPageState extends State<RegisterPage> {
             });
 
         if (mounted) {
+          // Navigate to new user information page for additional details
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (_) => NewUserInformation(user: userCredential.user!),
@@ -131,7 +173,7 @@ class _RegisterPageState extends State<RegisterPage> {
           );
         }
       } else {
-        // Existing user, go directly to home
+        // Navigate existing users directly to home page
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
@@ -141,18 +183,21 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       }
     } on FirebaseAuthException catch (e) {
+      // Handle Firebase authentication errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Authentication failed: ${e.message}')),
         );
       }
     } catch (e) {
+      // Handle general errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Google Sign-In failed: ${e.toString()}')),
         );
       }
     } finally {
+      // Reset loading state if widget is still mounted
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -163,6 +208,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // Modern gradient background
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -176,8 +222,11 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // App logo
                 Image.asset('assets/logo.png', width: 200, height: 150),
                 const SizedBox(height: 24),
+                
+                // Main registration card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -190,6 +239,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Registration header with icon
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -222,11 +272,14 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        
+                        // Registration form
                         Form(
                           key: _formKey,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Name input field
                               TextFormField(
                                 controller: _nameController,
                                 decoration: InputDecoration(
@@ -267,6 +320,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                             : null,
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Email input field
                               TextFormField(
                                 controller: _emailController,
                                 decoration: InputDecoration(
@@ -312,6 +367,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 },
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Phone number input field
                               TextFormField(
                                 controller: _phoneController,
                                 decoration: InputDecoration(
@@ -353,6 +410,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                             : null,
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Password input field
                               TextFormField(
                                 controller: _passwordController,
                                 decoration: InputDecoration(
@@ -396,6 +455,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 },
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Confirm password input field
                               TextFormField(
                                 controller: _confirmPasswordController,
                                 decoration: InputDecoration(
@@ -439,6 +500,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 },
                               ),
                               const SizedBox(height: 24),
+                              
+                              // Register button
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
@@ -464,11 +527,15 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Divider
                               const Text(
                                 'OR',
                                 style: TextStyle(color: Colors.grey),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Google Sign-In button
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
@@ -490,6 +557,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Login link
                               TextButton(
                                 onPressed:
                                     () => Navigator.of(

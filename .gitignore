@@ -1,45 +1,131 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# Flutter/Dart Project .gitignore
+# This file specifies which files and directories should be ignored by Git
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
+# System and IDE Files
+# -------------------
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Miscellaneous system files
+*.class        # Java class files
+*.log         # Log files
+*.pyc         # Python compiled files
+*.swp         # Vim swap files
+.DS_Store     # macOS system files
+.atom/        # Atom editor files
+.build/       # Build output directory
+.buildlog/    # Build log files
+.history      # Command history files
+.svn/         # Subversion files
+.swiftpm/     # Swift package manager files
+migrate_working_dir/  # Migration working directory
 
-# Flutter/Dart/Pub related
+# IDE Configuration
+# ----------------
+
+# IntelliJ IDEA / Android Studio files
+*.iml         # IntelliJ IDEA module files
+*.ipr         # IntelliJ IDEA project files
+*.iws         # IntelliJ IDEA workspace files
+.idea/        # IntelliJ IDEA settings directory
+
+# VS Code files (optional)
+# Uncomment if you want to ignore VS Code settings
+#.vscode/     # VS Code settings directory
+
+# Flutter and Dart
+# ---------------
+
+# API documentation
 **/doc/api/
+
+# iOS build identifiers
 **/ios/Flutter/.last_build_id
-.dart_tool/
+
+# Dart tool directory
+.dart_tool/    # Dart development tools
+
+# Flutter plugins
 .flutter-plugins
 .flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
 
-# Symbolication related
-app.*.symbols
+# Pub package manager
+.pub-cache/    # Pub cache directory
+.pub/          # Pub package directory
 
-# Obfuscation related
-app.*.map.json
+# Build outputs
+/build/        # Build output directory
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# Debug and Analysis
+# -----------------
+
+# Symbolication files
+app.*.symbols  # Symbol files for debugging
+
+# Obfuscation files
+app.*.map.json # Source map files for obfuscated code
+
+# Android Build Artifacts
+# ---------------------
+
+# Android Studio build directories
+/android/app/debug      # Debug build files
+/android/app/profile    # Profile build files
+/android/app/release    # Release build files
+
+# Firebase Configuration
+# --------------------
+
+# Uncomment these if you want to ignore Firebase config files
+# google-services.json    # Android Firebase config
+# GoogleService-Info.plist # iOS Firebase config
+
+# Environment Files
+# ---------------
+
+# Uncomment these if you use environment files
+# .env
+# .env.local
+# .env.development
+# .env.production
+
+# Generated Files
+# -------------
+
+# Generated code files
+# *.g.dart    # Uncomment if you want to ignore generated Dart files
+# *.freezed.dart
+# *.mocks.dart
+
+# Coverage Reports
+# --------------
+
+# Test coverage reports
+/coverage/
+
+# Platform Specific
+# ---------------
+
+# iOS
+**/ios/.generated/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+
+# macOS
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Web
+**/web/favicon.png
+**/web/icons/
+**/web/manifest.json
+
+# Windows
+**/windows/flutter/generated_plugin_registrant.cc
+**/windows/flutter/generated_plugin_registrant.h
+**/windows/flutter/generated_plugins.cmake
+
+# Linux
+**/linux/flutter/generated_plugin_registrant.cc
+**/linux/flutter/generated_plugin_registrant.h
+**/linux/flutter/generated_plugins.cmake

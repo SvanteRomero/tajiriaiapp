@@ -1,28 +1,74 @@
-# This file configures the analyzer, which statically analyzes Dart code to
-# check for errors, warnings, and lints.
-#
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
+# Flutter/Dart Analysis Options
+# This file configures the Dart analyzer to enforce consistent code quality
+# across the project. It helps maintain code standards and catch potential
+# issues early in development.
 
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
+# Include Flutter's recommended set of lints
+# These are curated by the Flutter team and represent best practices
 include: package:flutter_lints/flutter.yaml
 
+# Linter Configuration
 linter:
-  # The lint rules applied to this project can be customized in the
-  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
-  # included above or to enable additional rules. A list of all available lints
-  # and their documentation is published at https://dart.dev/lints.
-  #
-  # Instead of disabling a lint rule for the entire project in the
-  # section below, it can also be suppressed for a single line of code
-  # or a specific dart file by using the `// ignore: name_of_lint` and
-  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
-  # producing the lint.
+  # Lint Rules Configuration
+  # Rules can be enabled/disabled based on project requirements
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Code Style
+    prefer_single_quotes: true      # Use single quotes for strings
+    prefer_const_constructors: true # Use const for widget constructors when possible
+    prefer_final_locals: true      # Prefer final for local variables
+    prefer_final_fields: true      # Prefer final for class fields
+    
+    # Code Organization
+    sort_constructors_first: true  # Place constructors before other members
+    prefer_relative_imports: true  # Use relative imports for project files
+    directives_ordering: true      # Sort import directives alphabetically
+    
+    # Documentation
+    package_api_docs: true        # Require API documentation comments
+    public_member_api_docs: false # Don't require docs for every public member
+    
+    # Error Prevention
+    avoid_print: true            # Avoid using print statements
+    avoid_empty_else: true       # Avoid empty else statements
+    avoid_returning_null: true   # Avoid returning null from members
+    
+    # Performance
+    avoid_slow_async_io: true   # Avoid slow async operations in loops
+    
+    # Flutter Specific
+    avoid_unnecessary_containers: true # Avoid unnecessary Container widgets
+    use_key_in_widget_constructors: true # Use keys in widget constructors
+    
+    # Accessibility
+    use_full_hex_values_for_flutter_colors: true # Use full hex color values
 
-# Additional information about this file can be found at
+# Analyzer Configuration
+analyzer:
+  # Strong Mode Configuration
+  strong-mode:
+    implicit-casts: false    # Disallow implicit type casts
+    implicit-dynamic: false  # Disallow implicit dynamic types
+
+  # Error Rules
+  errors:
+    # Treat missing required parameters as errors
+    missing_required_param: error
+    # Treat missing return statements as errors
+    missing_return: error
+    # Treat invalid assignments as errors
+    invalid_assignment: error
+    
+  # Exclude specific files or directories from analysis
+  exclude:
+    - "lib/generated_plugin_registrant.dart"
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+  # Language Feature Configuration
+  language:
+    strict-casts: true      # Enable stricter type checking
+    strict-inference: true  # Enable stricter type inference
+    strict-raw-types: true # Enable stricter generic type checking
+
+# For more information about configuring the analyzer, see:
 # https://dart.dev/guides/language/analysis-options

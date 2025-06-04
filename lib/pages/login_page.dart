@@ -1,8 +1,14 @@
+/// A login page that provides both email/password and Google Sign-In functionality.
+/// This page handles user authentication through Firebase Auth and provides
+/// a modern, responsive UI with proper error handling and loading states.
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'home_page.dart';
 
+/// A stateful widget that represents the login screen.
+/// Manages user authentication state and form validation.
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
 
@@ -11,19 +17,34 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  // Form key for validation
   final _formKey = GlobalKey<FormState>();
+  
+  // Controllers for form fields
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  
+  // Google Sign-In instance with email and profile scopes
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  
+  // Loading state flag for UI feedback
   bool _isLoading = false;
 
   @override
   void dispose() {
+    // Clean up controllers when the widget is disposed
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  /// Handles the email/password login process.
+  /// 
+  /// This method:
+  /// 1. Validates the form
+  /// 2. Attempts to sign in with Firebase Auth
+  /// 3. Navigates to home page on success
+  /// 4. Shows error messages if login fails
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -32,20 +53,25 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
+      // Attempt to sign in with email and password
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      
+      // Navigate to home page on successful login
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => HomePage(user: FirebaseAuth.instance.currentUser!),
         ),
       );
     } on FirebaseAuthException catch (e) {
+      // Handle Firebase Auth specific errors
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.message ?? 'Login failed')));
     } finally {
+      // Reset loading state if widget is still mounted
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -54,16 +80,24 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Handles the Google Sign-In process.
+  /// 
+  /// This method:
+  /// 1. Signs out any existing Google session
+  /// 2. Initiates Google Sign-In flow
+  /// 3. Creates Firebase credentials from Google authentication
+  /// 4. Signs in to Firebase with the credentials
+  /// 5. Navigates to home page on success
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // First, sign out to clear any existing state
+      // Clear existing Google Sign-In state
       await _googleSignIn.signOut();
 
-      // Configure Google Sign In
+      // Initiate Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         if (mounted) {
@@ -77,17 +111,17 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // Get auth details from request
+      // Get authentication details from Google Sign-In
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      // Create a new credential
+      // Create Firebase credentials
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase with the Google credential
+      // Sign in to Firebase
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithCredential(credential);
 
@@ -95,6 +129,7 @@ class _LoginPageState extends State<LoginPage> {
         throw Exception('Failed to get user from credential');
       }
 
+      // Navigate to home page on successful sign-in
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -103,18 +138,21 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } on FirebaseAuthException catch (e) {
+      // Handle Firebase authentication errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Authentication failed: ${e.message}')),
         );
       }
     } catch (e) {
+      // Handle general errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Google Sign-In failed: ${e.toString()}')),
         );
       }
     } finally {
+      // Reset loading state if widget is still mounted
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -127,6 +165,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // Modern gradient background
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -140,8 +179,11 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // App logo
                 Image.asset('assets/logo.png', width: 200, height: 150),
                 const SizedBox(height: 24),
+                
+                // Main login card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -154,6 +196,7 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Login header with icon
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -186,11 +229,14 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        
+                        // Login form
                         Form(
                           key: _formKey,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Email input field
                               TextFormField(
                                 controller: _emailController,
                                 decoration: InputDecoration(
@@ -238,6 +284,8 @@ class _LoginPageState extends State<LoginPage> {
                                 },
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Password input field
                               TextFormField(
                                 controller: _passwordController,
                                 decoration: InputDecoration(
@@ -283,6 +331,8 @@ class _LoginPageState extends State<LoginPage> {
                                 },
                               ),
                               const SizedBox(height: 24),
+                              
+                              // Login button
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
@@ -308,11 +358,15 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Divider
                               const Text(
                                 'OR',
                                 style: TextStyle(color: Colors.grey),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Google Sign-In button
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
@@ -334,6 +388,8 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // Register link
                               TextButton(
                                 onPressed: () {
                                   Navigator.of(context).pushNamed('/register');

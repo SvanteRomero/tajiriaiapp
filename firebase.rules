@@ -1,37 +1,66 @@
 rules_version = '2';
 
 // Firestore Rules
+// These rules define who can access what data in Cloud Firestore
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection: each user may create/read/update/delete only their own doc
+    // Users collection rules
+    // Each user can only access their own document in the users collection
     match /users/{userId} {
+      // Allow user creation only if:
+      // - The request is authenticated
+      // - The user ID matches the authenticated user's ID
       allow create: if request.auth != null
                     && request.auth.uid == userId;
+
+      // Allow read/update/delete only if:
+      // - The request is authenticated
+      // - The user ID matches the authenticated user's ID
       allow read, update, delete: if request.auth != null
                                   && request.auth.uid == userId;
     }
 
-    // Each user's transactions sub-collection
+    // Transactions subcollection rules
+    // Each user can only access their own transactions
     match /users/{userId}/transactions/{txId} {
+      // Allow transaction creation only if:
+      // - The request is authenticated
+      // - The user ID matches the authenticated user's ID
       allow create: if request.auth != null
                     && request.auth.uid == userId;
+
+      // Allow read/update/delete only if:
+      // - The request is authenticated
+      // - The user ID matches the authenticated user's ID
       allow read, update, delete: if request.auth != null
                                   && request.auth.uid == userId;
     }
 
-    // Top‑level goals collection
-    // Only the authenticated owner can create/read/update/delete their own goals
+    // Goals collection rules
+    // Each user can only access their own goals in the top-level goals collection
     match /goals/{goalId} {
+      // Allow goal creation only if:
+      // - The request is authenticated
+      // - The goal's userId field matches the authenticated user's ID
       allow create: if request.auth != null
                     && request.resource.data.userId == request.auth.uid;
+
+      // Allow reading goals only if:
+      // - The request is authenticated
+      // - The goal's userId field matches the authenticated user's ID
       allow read:   if request.auth != null
                     && resource.data.userId == request.auth.uid;
+
+      // Allow update/delete only if:
+      // - The request is authenticated
+      // - The goal's userId field matches the authenticated user's ID
       allow update, delete: if request.auth != null
                             && resource.data.userId == request.auth.uid;
     }
 
-    // Deny everything else
+    // Default deny rule
+    // Deny access to all other collections and documents
     match /{document=**} {
       allow read, write: if false;
     }
@@ -39,17 +68,24 @@ service cloud.firestore {
 }
 
 // Storage Rules
+// These rules define who can access what files in Firebase Storage
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow users to read any profile photo
+    // Profile photo rules
+    // Allow any authenticated user to read profile photos
+    // But only allow users to write their own profile photo
     match /users/{userId}/profile.jpg {
+      // Allow reading of profile photos by any authenticated user
       allow read: if request.auth != null;
+
+      // Allow writing of profile photos only by the owner
       allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Deny access to all other files
+    // Default deny rule
+    // Deny access to all other files in storage
     match /{allPaths=**} {
       allow read, write: if false;
     }
   }
-} 
+}
