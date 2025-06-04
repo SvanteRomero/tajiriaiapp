@@ -5,14 +5,19 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:tajiri_ai/components/empty_page.dart';
 import 'package:tajiri_ai/models/transaction.dart' as my_tx;
 
+/// Data model for category-based financial analysis
 class CategoryData {
   final String category;
   final double value;
   CategoryData({required this.category, required this.value});
 }
 
+/// Analytics screen displays financial insights and visualizations
+/// Shows spending patterns, savings progress, and transaction breakdowns
 class Analytics extends StatelessWidget {
+  /// Currently authenticated user
   final User user;
+  
   const Analytics({Key? key, required this.user}) : super(key: key);
 
   @override
@@ -21,12 +26,12 @@ class Analytics extends StatelessWidget {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot>(
-          stream:
-              FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .collection('transactions')
-                  .snapshots(),
+          // Real-time stream of user's transactions
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('transactions')
+              .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -38,21 +43,22 @@ class Analytics extends StatelessWidget {
                 pageDescription: 'Add transactions to see analytics',
               );
             }
-            final txs =
-                snapshot.data!.docs.map((doc) {
-                  final d = doc.data()! as Map<String, dynamic>;
-                  return my_tx.Transaction(
-                    username: d['username'],
-                    description: d['description'],
-                    amount: (d['amount'] as num).toDouble(),
-                    date: (d['date'] as Timestamp).toDate(),
-                    type:
-                        d['type'] == 'income'
-                            ? my_tx.TransactionType.income
-                            : my_tx.TransactionType.expense,
-                  );
-                }).toList();
 
+            // Convert Firestore documents to Transaction objects
+            final txs = snapshot.data!.docs.map((doc) {
+              final d = doc.data()! as Map<String, dynamic>;
+              return my_tx.Transaction(
+                username: d['username'],
+                description: d['description'],
+                amount: (d['amount'] as num).toDouble(),
+                date: (d['date'] as Timestamp).toDate(),
+                type: d['type'] == 'income'
+                    ? my_tx.TransactionType.income
+                    : my_tx.TransactionType.expense,
+              );
+            }).toList();
+
+            // Calculate analytics data
             final topExpenses = _topCategories(txs, isIncome: false);
             final topIncomes = _topCategories(txs, isIncome: true);
             final dailyData = _aggregateByDayOfWeek(txs);
@@ -61,16 +67,16 @@ class Analytics extends StatelessWidget {
 
             return CustomScrollView(
               slivers: [
+                // Top metrics grid
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.2,
-                        ),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.2,
+                    ),
                     delegate: SliverChildListDelegate([
                       _styledMetricCard(
                         'Top Expense',
@@ -95,6 +101,7 @@ class Analytics extends StatelessWidget {
                     ]),
                   ),
                 ),
+                // Savings overview section
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -124,6 +131,7 @@ class Analytics extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Weekly trends section
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -136,6 +144,7 @@ class Analytics extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Line chart for weekly trends
                 SliverToBoxAdapter(
                   child: SizedBox(
                     height: 250,
@@ -157,24 +166,16 @@ class Analytics extends StatelessWidget {
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
-                                getTitlesWidget:
-                                    (value, meta) => Text(
-                                      [
-                                        'Mon',
-                                        'Tue',
-                                        'Wed',
-                                        'Thu',
-                                        'Fri',
-                                        'Sat',
-                                        'Sun',
-                                      ][value.toInt()],
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
+                                getTitlesWidget: (value, meta) => Text(
+                                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][value.toInt()],
+                                  style: const TextStyle(fontSize: 12),
+                                ),
                               ),
                             ),
                           ),
                           borderData: FlBorderData(show: false),
                           lineBarsData: [
+                            // Income line
                             LineChartBarData(
                               spots: List.generate(
                                 7,
@@ -188,6 +189,7 @@ class Analytics extends StatelessWidget {
                               barWidth: 3,
                               dotData: FlDotData(show: false),
                             ),
+                            // Expense line
                             LineChartBarData(
                               spots: List.generate(
                                 7,
@@ -207,6 +209,7 @@ class Analytics extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Category breakdown section
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -219,16 +222,16 @@ class Analytics extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Pie charts grid
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1,
-                        ),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1,
+                    ),
                     delegate: SliverChildListDelegate([
                       _styledChartCard(
                         'Expenses',
@@ -247,6 +250,7 @@ class Analytics extends StatelessWidget {
     );
   }
 
+  /// Builds a styled metric card widget
   Widget _styledMetricCard(
     String title,
     String value,
@@ -298,6 +302,7 @@ class Analytics extends StatelessWidget {
     );
   }
 
+  /// Builds a styled pie chart card widget
   Widget _styledChartCard(
     String title,
     List<CategoryData> data, {
@@ -319,17 +324,16 @@ class Analytics extends StatelessWidget {
             Expanded(
               child: PieChart(
                 PieChartData(
-                  sections:
-                      data.map((d) {
-                        final color = isExpense ? Colors.red : Colors.green;
-                        return PieChartSectionData(
-                          value: d.value,
-                          title: d.category,
-                          color: color.withOpacity(0.7),
-                          titleStyle: const TextStyle(fontSize: 11),
-                          radius: 50,
-                        );
-                      }).toList(),
+                  sections: data.map((d) {
+                    final color = isExpense ? Colors.red : Colors.green;
+                    return PieChartSectionData(
+                      value: d.value,
+                      title: d.category,
+                      color: color.withOpacity(0.7),
+                      titleStyle: const TextStyle(fontSize: 11),
+                      radius: 50,
+                    );
+                  }).toList(),
                 ),
               ),
             ),
@@ -339,6 +343,7 @@ class Analytics extends StatelessWidget {
     );
   }
 
+  /// Aggregates transactions by day of week
   List<Map<String, double>> _aggregateByDayOfWeek(List<my_tx.Transaction> txs) {
     final result = List.generate(7, (_) => {'income': 0.0, 'expense': 0.0});
     for (var tx in txs) {
@@ -352,6 +357,7 @@ class Analytics extends StatelessWidget {
     return result;
   }
 
+  /// Calculates top categories by transaction amount
   List<CategoryData> _topCategories(
     List<my_tx.Transaction> txs, {
     required bool isIncome,
@@ -359,32 +365,30 @@ class Analytics extends StatelessWidget {
   }) {
     final Map<String, double> totals = {};
     for (var tx in txs.where(
-      (t) =>
-          (isIncome && t.type == my_tx.TransactionType.income) ||
+      (t) => (isIncome && t.type == my_tx.TransactionType.income) ||
           (!isIncome && t.type == my_tx.TransactionType.expense),
     )) {
       totals[tx.description] = (totals[tx.description] ?? 0) + tx.amount;
     }
-    final sorted =
-        totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sorted = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return sorted
         .take(topN)
         .map((e) => CategoryData(category: e.key, value: e.value))
         .toList();
   }
 
+  /// Calculates maximum Y value for charts
   double _calculateMaxY(List<Map<String, double>> dailyData) {
     double maxValue = 0;
     for (var day in dailyData) {
-      maxValue =
-          maxValue < (day['income'] ?? 0) ? (day['income'] ?? 0) : maxValue;
-      maxValue =
-          maxValue < (day['expense'] ?? 0) ? (day['expense'] ?? 0) : maxValue;
+      maxValue = maxValue < (day['income'] ?? 0) ? (day['income'] ?? 0) : maxValue;
+      maxValue = maxValue < (day['expense'] ?? 0) ? (day['expense'] ?? 0) : maxValue;
     }
-    // Round up to the nearest thousand and add some padding
+    // Round up to the nearest thousand and add padding
     return (maxValue / 1000).ceil() * 1000 + 1000;
   }
 
+  /// Builds a savings progress card widget
   Widget _buildSavingsCard(
     String title,
     double saved,
@@ -486,6 +490,7 @@ class Analytics extends StatelessWidget {
     );
   }
 
+  /// Calculates weekly savings and target
   Map<String, double> _calculateWeeklySavings(List<my_tx.Transaction> txs) {
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
@@ -504,12 +509,13 @@ class Analytics extends StatelessWidget {
       }
     }
 
-    // Example weekly target (you might want to make this configurable)
+    // Example weekly target (configurable)
     const weeklyTarget = 50000.0;
 
     return {'saved': income - expenses, 'target': weeklyTarget};
   }
 
+  /// Calculates monthly savings and target
   Map<String, double> _calculateMonthlySavings(List<my_tx.Transaction> txs) {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
@@ -528,7 +534,7 @@ class Analytics extends StatelessWidget {
       }
     }
 
-    // Example monthly target (you might want to make this configurable)
+    // Example monthly target (configurable)
     const monthlyTarget = 200000.0;
 
     return {'saved': income - expenses, 'target': monthlyTarget};

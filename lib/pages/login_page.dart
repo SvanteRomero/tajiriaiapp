@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'home_page.dart';
 
+/// LoginPage handles user authentication through email/password and Google Sign-In
+/// Provides a form interface for login credentials and authentication state management
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
 
@@ -11,19 +13,31 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  /// Key for the login form validation
   final _formKey = GlobalKey<FormState>();
+
+  /// Controllers for the email and password input fields
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  /// Google Sign-In instance with required scopes
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+
+  /// Loading state for authentication processes
   bool _isLoading = false;
 
   @override
   void dispose() {
+    // Clean up controllers when widget is disposed
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  /// Handles email/password login authentication
+  /// 
+  /// Validates form input, attempts Firebase authentication,
+  /// and navigates to HomePage on success
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -32,20 +46,29 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
+      // Attempt Firebase email/password authentication
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => HomePage(user: FirebaseAuth.instance.currentUser!),
-        ),
-      );
+
+      // Navigate to home page on success
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => HomePage(user: FirebaseAuth.instance.currentUser!),
+          ),
+        );
+      }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message ?? 'Login failed')));
+      // Show error message if authentication fails
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Login failed'))
+        );
+      }
     } finally {
+      // Reset loading state
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -54,16 +77,20 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Handles Google Sign-In authentication
+  /// 
+  /// Manages the OAuth flow with Google, creates Firebase credentials,
+  /// and navigates to HomePage on success
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // First, sign out to clear any existing state
+      // Clear existing Google Sign-In state
       await _googleSignIn.signOut();
 
-      // Configure Google Sign In
+      // Start Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         if (mounted) {
@@ -71,30 +98,27 @@ class _LoginPageState extends State<LoginPage> {
             const SnackBar(content: Text('Google Sign-In was cancelled')),
           );
         }
-        setState(() {
-          _isLoading = false;
-        });
         return;
       }
 
-      // Get auth details from request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      // Get authentication details
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      // Create a new credential
+      // Create Firebase credential
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase with the Google credential
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithCredential(credential);
+      // Sign in to Firebase with Google credential
+      final UserCredential userCredential = 
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (userCredential.user == null) {
         throw Exception('Failed to get user from credential');
       }
 
+      // Navigate to home page on success
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -127,6 +151,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // Gradient background
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -140,8 +165,10 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // App logo
                 Image.asset('assets/logo.png', width: 200, height: 150),
                 const SizedBox(height: 24),
+                // Login card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -154,15 +181,14 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Login header
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
                             horizontal: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primary.withOpacity(0.1),
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -186,11 +212,13 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        // Login form
                         Form(
                           key: _formKey,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Email input field
                               TextFormField(
                                 controller: _emailController,
                                 decoration: InputDecoration(
@@ -198,15 +226,11 @@ class _LoginPageState extends State<LoginPage> {
                                   hintText: 'john.doe@example.com',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey[300]!,
-                                    ),
+                                    borderSide: BorderSide(color: Colors.grey[300]!),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey[200]!,
-                                    ),
+                                    borderSide: BorderSide(color: Colors.grey[200]!),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -221,9 +245,7 @@ class _LoginPageState extends State<LoginPage> {
                                     horizontal: 16,
                                     vertical: 16,
                                   ),
-                                  labelStyle: TextStyle(
-                                    color: Colors.grey[600],
-                                  ),
+                                  labelStyle: TextStyle(color: Colors.grey[600]),
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
@@ -238,21 +260,18 @@ class _LoginPageState extends State<LoginPage> {
                                 },
                               ),
                               const SizedBox(height: 16),
+                              // Password input field
                               TextFormField(
                                 controller: _passwordController,
                                 decoration: InputDecoration(
                                   labelText: 'Password',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey[300]!,
-                                    ),
+                                    borderSide: BorderSide(color: Colors.grey[300]!),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey[200]!,
-                                    ),
+                                    borderSide: BorderSide(color: Colors.grey[200]!),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -267,9 +286,7 @@ class _LoginPageState extends State<LoginPage> {
                                     horizontal: 16,
                                     vertical: 16,
                                   ),
-                                  labelStyle: TextStyle(
-                                    color: Colors.grey[600],
-                                  ),
+                                  labelStyle: TextStyle(color: Colors.grey[600]),
                                 ),
                                 obscureText: true,
                                 validator: (value) {
@@ -283,6 +300,7 @@ class _LoginPageState extends State<LoginPage> {
                                 },
                               ),
                               const SizedBox(height: 24),
+                              // Login button
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
@@ -296,29 +314,20 @@ class _LoginPageState extends State<LoginPage> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                  child:
-                                      _isLoading
-                                          ? const CircularProgressIndicator(
-                                            color: Colors.white,
-                                          )
-                                          : const Text(
-                                            'Login',
-                                            style: TextStyle(fontSize: 16),
-                                          ),
+                                  child: _isLoading
+                                      ? const CircularProgressIndicator(color: Colors.white)
+                                      : const Text('Login', style: TextStyle(fontSize: 16)),
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              const Text(
-                                'OR',
-                                style: TextStyle(color: Colors.grey),
-                              ),
+                              const Text('OR', style: TextStyle(color: Colors.grey)),
                               const SizedBox(height: 16),
+                              // Google Sign-In button
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
                                 child: OutlinedButton.icon(
-                                  onPressed:
-                                      _isLoading ? null : _signInWithGoogle,
+                                  onPressed: _isLoading ? null : _signInWithGoogle,
                                   icon: Image.asset(
                                     'assets/google_logo.png',
                                     height: 24,
@@ -334,6 +343,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              // Register link
                               TextButton(
                                 onPressed: () {
                                   Navigator.of(context).pushNamed('/register');
@@ -341,9 +351,7 @@ class _LoginPageState extends State<LoginPage> {
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.blue[400],
                                 ),
-                                child: const Text(
-                                  "Don't have an account? Register",
-                                ),
+                                child: const Text("Don't have an account? Register"),
                               ),
                             ],
                           ),

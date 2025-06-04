@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tajiri_ai/models/goal_model.dart';
-
 import 'home_page.dart';
 
+/// NewUserInformation collects additional user data after registration
+/// Gathers personal details, income information, and initial savings goals
 class NewUserInformation extends StatefulWidget {
+  /// Currently authenticated user
   final User user;
+  
   const NewUserInformation({Key? key, required this.user}) : super(key: key);
 
   @override
@@ -14,29 +17,34 @@ class NewUserInformation extends StatefulWidget {
 }
 
 class _NewUserInformationState extends State<NewUserInformation> {
+  /// Key for form validation
   final _formKey = GlobalKey<FormState>();
+
+  /// Personal information fields
   String? _gender;
   int? _age;
-  bool _isLoading = false;
   final TextEditingController _collegeController = TextEditingController();
 
-  // Fixed Income fields
-  final TextEditingController _incomeDescriptionController =
-      TextEditingController();
+  /// Fixed income information fields
+  final TextEditingController _incomeDescriptionController = TextEditingController();
   final TextEditingController _incomeAmountController = TextEditingController();
   String _incomeDuration = 'Monthly';
 
-  // Goal fields
+  /// Goal setting fields
   final TextEditingController _goalTitleController = TextEditingController();
   final TextEditingController _goalAmountController = TextEditingController();
   DateTime? _goalDeadline;
 
-  // New savings goal inputs
+  /// Savings target fields
   final TextEditingController _weeklyGoalController = TextEditingController();
   final TextEditingController _monthlyGoalController = TextEditingController();
 
+  /// Loading state for form submission
+  bool _isLoading = false;
+
   @override
   void dispose() {
+    // Clean up controllers
     _goalTitleController.dispose();
     _goalAmountController.dispose();
     _weeklyGoalController.dispose();
@@ -47,7 +55,11 @@ class _NewUserInformationState extends State<NewUserInformation> {
     super.dispose();
   }
 
+  /// Handles form submission and data storage
+  /// 
+  /// Validates form data, saves to Firestore, and creates initial goal
   Future<void> _submit() async {
+    // Validate all required fields
     if (!_formKey.currentState!.validate() ||
         _gender == null ||
         _goalDeadline == null) {
@@ -65,7 +77,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
     final uid = widget.user.uid;
 
     try {
-      // Save user info including new goals and fixed income
+      // Save user information to Firestore
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
         'gender': _gender,
         'age': _age,
@@ -79,7 +91,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
         },
       });
 
-      // Save first goal entry if desired
+      // Create initial savings goal
       final goal = Goal(
         title: _goalTitleController.text.trim(),
         target: int.parse(_goalAmountController.text.trim()),
@@ -90,12 +102,14 @@ class _NewUserInformationState extends State<NewUserInformation> {
         'userId': uid,
       });
 
+      // Navigate to home page on success
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => HomePage(user: widget.user)),
         );
       }
     } catch (e) {
+      // Show error message if save fails
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -111,6 +125,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
     }
   }
 
+  /// Opens date picker for goal deadline selection
   Future<void> _pickDeadline() async {
     final picked = await showDatePicker(
       context: context,
@@ -140,6 +155,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
         foregroundColor: Colors.black87,
       ),
       body: Container(
+        // Gradient background
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -153,6 +169,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
             key: _formKey,
             child: ListView(
               children: [
+                // Personal Information Card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -165,6 +182,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Section header
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -195,7 +213,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Gender Selection
+                        // Gender selection chips
                         const Text(
                           'Gender',
                           style: TextStyle(
@@ -206,33 +224,28 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
-                          children:
-                              ['Male', 'Female', 'Other'].map((label) {
-                                final selected = _gender == label;
-                                return ChoiceChip(
-                                  label: Text(
-                                    label,
-                                    style: TextStyle(
-                                      color:
-                                          selected
-                                              ? Colors.white
-                                              : Colors.grey[600],
-                                    ),
-                                  ),
-                                  selected: selected,
-                                  onSelected:
-                                      (_) => setState(() => _gender = label),
-                                  selectedColor: Colors.blue[400],
-                                  backgroundColor: Colors.grey[200],
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                );
-                              }).toList(),
+                          children: ['Male', 'Female', 'Other'].map((label) {
+                            final selected = _gender == label;
+                            return ChoiceChip(
+                              label: Text(
+                                label,
+                                style: TextStyle(
+                                  color: selected ? Colors.white : Colors.grey[600],
+                                ),
+                              ),
+                              selected: selected,
+                              onSelected: (_) => setState(() => _gender = label),
+                              selectedColor: Colors.blue[400],
+                              backgroundColor: Colors.grey[200],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                            );
+                          }).toList(),
                         ),
                         if (_gender == null)
                           const Padding(
@@ -244,7 +257,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                           ),
 
                         const SizedBox(height: 16),
-                        // Age Input
+                        // Age input field
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Age',
@@ -286,7 +299,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
 
                         const SizedBox(height: 16),
-                        // College Input
+                        // College/University input field
                         TextFormField(
                           controller: _collegeController,
                           decoration: InputDecoration(
@@ -328,7 +341,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
 
                 const SizedBox(height: 16),
 
-                // Fixed Income Section
+                // Fixed Income Card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -341,6 +354,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Section header
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -371,11 +385,11 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
                         const SizedBox(height: 20),
 
+                        // Income description field
                         TextFormField(
                           controller: _incomeDescriptionController,
                           decoration: InputDecoration(
-                            labelText:
-                                'Income Description (e.g., Allowance, Part-time job)',
+                            labelText: 'Income Description (e.g., Allowance, Part-time job)',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -408,6 +422,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
 
                         const SizedBox(height: 16),
+                        // Income amount field
                         TextFormField(
                           controller: _incomeAmountController,
                           decoration: InputDecoration(
@@ -448,6 +463,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
 
                         const SizedBox(height: 16),
+                        // Income duration dropdown
                         DropdownButtonFormField<String>(
                           value: _incomeDuration,
                           decoration: InputDecoration(
@@ -457,17 +473,13 @@ class _NewUserInformationState extends State<NewUserInformation> {
                               borderSide: BorderSide(color: Colors.grey[300]!),
                             ),
                           ),
-                          items:
-                              ['Weekly', 'Monthly', 'Yearly']
-                                  .map(
-                                    (o) => DropdownMenuItem(
-                                      value: o,
-                                      child: Text(o),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (val) => setState(() => _incomeDuration = val!),
+                          items: ['Weekly', 'Monthly', 'Yearly']
+                              .map((o) => DropdownMenuItem(
+                                    value: o,
+                                    child: Text(o),
+                                  ))
+                              .toList(),
+                          onChanged: (val) => setState(() => _incomeDuration = val!),
                         ),
                       ],
                     ),
@@ -476,7 +488,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
 
                 const SizedBox(height: 16),
 
-                // Savings Goals Section
+                // Savings Goals Card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -489,6 +501,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Section header
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -519,6 +532,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
                         const SizedBox(height: 20),
 
+                        // Weekly savings goal field
                         TextFormField(
                           controller: _weeklyGoalController,
                           decoration: InputDecoration(
@@ -559,6 +573,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
 
                         const SizedBox(height: 16),
+                        // Monthly savings goal field
                         TextFormField(
                           controller: _monthlyGoalController,
                           decoration: InputDecoration(
@@ -604,7 +619,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
 
                 const SizedBox(height: 16),
 
-                // First Goal Section
+                // First Goal Card
                 Card(
                   elevation: 0,
                   color: Colors.white.withOpacity(0.9),
@@ -617,6 +632,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Section header
                         Container(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -647,6 +663,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
                         const SizedBox(height: 20),
 
+                        // Goal title field
                         TextFormField(
                           controller: _goalTitleController,
                           decoration: InputDecoration(
@@ -683,6 +700,7 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
 
                         const SizedBox(height: 16),
+                        // Goal amount field
                         TextFormField(
                           controller: _goalAmountController,
                           decoration: InputDecoration(
@@ -723,13 +741,12 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         ),
 
                         const SizedBox(height: 16),
+                        // Goal deadline picker
                         ListTile(
                           title: Text(
                             _goalDeadline == null
                                 ? 'Select Deadline'
-                                : 'Deadline: ${_goalDeadline!.toLocal()}'.split(
-                                  ' ',
-                                )[0],
+                                : 'Deadline: ${_goalDeadline!.toLocal()}'.split(' ')[0],
                           ),
                           trailing: const Icon(Icons.calendar_today),
                           onTap: _pickDeadline,
@@ -749,12 +766,12 @@ class _NewUserInformationState extends State<NewUserInformation> {
                 ),
 
                 const SizedBox(height: 24),
-                // Submit Button
+                // Submit button
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _submit,
+                    onPressed: _isLoading ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[400],
                       foregroundColor: Colors.white,
@@ -763,10 +780,12 @@ class _NewUserInformationState extends State<NewUserInformation> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Finish Setup',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Finish Setup',
+                            style: TextStyle(fontSize: 16),
+                          ),
                   ),
                 ),
               ],
