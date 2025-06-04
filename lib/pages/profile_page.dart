@@ -4,107 +4,103 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import '../widgets/profile_card.dart';
+import '../widgets/goal_progress.dart';
+import '../services/offline_storage_service.dart';
 
-/// ProfilePage displays and manages user profile information
-/// Includes personal details, financial overview, savings goals, and account settings
-class ProfilePage extends StatefulWidget {
-  /// Currently authenticated user
+class ProfilePageUpdated extends StatefulWidget {
   final User user;
   
-  const ProfilePage({Key? key, required this.user}) : super(key: key);
+  const ProfilePageUpdated({
+    Key? key, 
+    required this.user,
+  }) : super(key: key);
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  State<ProfilePageUpdated> createState() => _ProfilePageUpdatedState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
-  /// Loading state for async operations
+class _ProfilePageUpdatedState extends State<ProfilePageUpdated> {
+  final OfflineStorageService _storageService = OfflineStorageService();
+  final ImagePicker _picker = ImagePicker();
+  
   bool _isLoading = true;
-
-  /// User profile information
+  String _errorMessage = '';
+  
+  // User profile information
   String _name = '';
   String _email = '';
   String _phone = '';
   String? _photoUrl;
+  String _occupation = '';
 
-  /// Financial overview
+  // Financial overview
   double _balance = 0;
   double _totalIncome = 0;
   double _totalExpense = 0;
 
-  /// Savings goals
-  double _weeklyGoal = 0;
-  double _monthlyGoal = 0;
+  // Category totals
+  Map<String, double> _incomeCategoryTotals = {};
+  Map<String, double> _expenseCategoryTotals = {};
+
+  // Savings goals
   String _goalTitle = '';
-  double _goalTarget = 0;
+  double _goalTarget = 5000.0; // Default target
   DateTime? _goalDeadline;
-
-  /// Form key for validation
-  final _formKey = GlobalKey<FormState>();
-
-  /// Image picker instance for profile photo
-  final ImagePicker _picker = ImagePicker();
+  double _goalProgress = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _initializeData();
   }
 
-  /// Loads user data from Firestore
-  /// Includes profile info, transactions, and goals
-  Future<void> _loadUserData() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-
+  Future<void> _initializeData() async {
     try {
-      // Load user profile
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      // Initialize storage service
+      await _storageService.initialize().catchError((e) {
+        throw 'Failed to initialize storage: $e';
+      });
+
+      // Load offline transactions
+      final transactions = _storageService.getTransactions(widget.user.uid);
+      
+      // Calculate totals
+      double income = 0, expense = 0;
+      _incomeCategoryTotals = {};
+      _expenseCategoryTotals = {};
+
+      for (var tx in transactions) {
+        if (tx.type == 'income') {
+          income += tx.amount;
+          _incomeCategoryTotals[tx.mainCategory] = 
+              (_incomeCategoryTotals[tx.mainCategory] ?? 0) + tx.amount;
+        } else {
+          expense += tx.amount;
+          _expenseCategoryTotals[tx.mainCategory] = 
+              (_expenseCategoryTotals[tx.mainCategory] ?? 0) + tx.amount;
+        }
+      }
+
+      // Load user profile from Firestore
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.user.uid)
           .get();
 
-      if (!mounted) return;
-
       if (userDoc.exists) {
         final data = userDoc.data()!;
-        setState(() {
-          _name = data['name'] as String? ?? widget.user.displayName ?? '';
-          _email = data['email'] as String? ?? widget.user.email!;
-          _phone = data['phone'] as String? ?? '';
-          _photoUrl = data['photoUrl'] as String?;
-          _weeklyGoal = (data['weeklyGoal'] as num?)?.toDouble() ?? 0;
-          _monthlyGoal = (data['monthlyGoal'] as num?)?.toDouble() ?? 0;
-        });
+        _name = data['name'] as String? ?? widget.user.displayName ?? '';
+        _email = data['email'] as String? ?? widget.user.email ?? '';
+        _phone = data['phone'] as String? ?? '';
+        _photoUrl = data['photoUrl'] as String?;
+        _occupation = data['occupation'] as String? ?? '';
       }
-
-      // Load transactions
-      final txSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .collection('transactions')
-          .get();
-
-      if (!mounted) return;
-
-      // Calculate totals
-      double income = 0, expense = 0;
-      for (var doc in txSnapshot.docs) {
-        final data = doc.data();
-        final amount = (data['amount'] as num).toDouble();
-        if (data['type'] == 'income') {
-          income += amount;
-        } else {
-          expense += amount;
-        }
-      }
-
-      setState(() {
-        _totalIncome = income;
-        _totalExpense = expense;
-        _balance = income - expense;
-      });
 
       // Load active goal
       final goalsSnapshot = await FirebaseFirestore.instance
@@ -114,296 +110,47 @@ class _ProfilePageState extends State<ProfilePage> {
           .where('isActive', isEqualTo: true)
           .get();
 
-      if (!mounted) return;
-
       if (goalsSnapshot.docs.isNotEmpty) {
         final goalData = goalsSnapshot.docs.first.data();
-        setState(() {
-          _goalTitle = goalData['title'] as String? ?? '';
-          _goalTarget = (goalData['target'] as num?)?.toDouble() ?? 0;
-          _goalDeadline = (goalData['deadline'] as Timestamp?)?.toDate();
-        });
+        _goalTitle = goalData['title'] as String? ?? '';
+        _goalTarget = (goalData['target'] as num?)?.toDouble() ?? 5000.0;
+        _goalDeadline = (goalData['deadline'] as Timestamp?)?.toDate();
       }
 
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    } catch (e) {
-      print('Error loading user data: $e');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    }
-  }
-
-  /// Shows dialog to edit profile information
-  Future<void> _editProfile() async {
-    String name = _name;
-    String phone = _phone;
-
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: name,
-                decoration: const InputDecoration(labelText: 'Name'),
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                onSaved: (v) => name = v!.trim(),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                initialValue: phone,
-                decoration: const InputDecoration(labelText: 'Phone'),
-                keyboardType: TextInputType.phone,
-                onSaved: (v) => phone = v?.trim() ?? '',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_formKey.currentState?.validate() ?? false) {
-                _formKey.currentState!.save();
-                Navigator.pop(context);
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(widget.user.uid)
-                    .update({'name': name, 'phone': phone});
-                await _loadUserData();
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Shows bottom sheet for profile photo options
-  Future<void> _pickOrChangePhoto() async {
-    try {
-      final action = await showModalBottomSheet<String>(
-        context: context,
-        builder: (_) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(_photoUrl == null ? 'Add Photo' : 'Change Photo'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.pop(context, 'gallery'),
-            ),
-            if (_photoUrl != null)
-              ListTile(
-                leading: const Icon(Icons.delete),
-                title: const Text('Remove Photo'),
-                onTap: () => Navigator.pop(context, 'remove'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: const Text('Cancel'),
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
-
-      if (action == 'gallery') {
-        final picked = await _picker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 70,
-          maxWidth: 800,
-          maxHeight: 800,
-        );
-
-        if (picked != null) {
-          print('Image picked: ${picked.path}');
-          await _uploadPhoto(File(picked.path));
-        }
-      } else if (action == 'remove') {
-        await _removePhoto();
+      // Calculate current balance and goal progress
+      _balance = income - expense;
+      if (_goalTarget > 0) {
+        _goalProgress = (_balance / _goalTarget).clamp(0.0, 1.0);
       }
-    } catch (e) {
-      print('Error picking photo: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick photo: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
-  /// Uploads profile photo to Firebase Storage
-  Future<void> _uploadPhoto(File file) async {
-    try {
-      setState(() => _isLoading = true);
-
-      // Create storage reference
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('users')
-          .child(widget.user.uid)
-          .child('profile.jpg');
-
-      // Upload with metadata
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-        customMetadata: {'picked-file-path': file.path},
-      );
-
-      final uploadTask = storageRef.putFile(file, metadata);
-
-      // Monitor upload progress
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        print('Upload progress: ${snapshot.bytesTransferred}/${snapshot.totalBytes}');
+      setState(() {
+        _totalIncome = income;
+        _totalExpense = expense;
+        _isLoading = false;
       });
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      print('Download URL: $downloadUrl');
-
-      // Update user profile
-      await widget.user.updatePhotoURL(downloadUrl);
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .update({'photoUrl': downloadUrl});
-
-      if (mounted) {
-        setState(() {
-          _photoUrl = downloadUrl;
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile photo updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
-      print('Error uploading photo: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to upload photo: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Failed to load profile data: $e';
+      });
     }
   }
 
-  /// Removes profile photo
-  Future<void> _removePhoto() async {
-    try {
-      setState(() => _isLoading = true);
+  String _formatCurrency(double amount) {
+    return '\$${amount.toStringAsFixed(2)}';
+  }
 
-      if (_photoUrl != null) {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('users')
-            .child(widget.user.uid)
-            .child('profile.jpg');
-
-        try {
-          await storageRef.delete();
-        } catch (e) {
-          print('Error deleting storage file: $e');
-        }
-      }
-
-      await widget.user.updatePhotoURL(null);
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .update({'photoUrl': FieldValue.delete()});
-
-      if (mounted) {
-        setState(() {
-          _photoUrl = null;
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile photo removed successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error removing photo: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to remove photo: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
+  String _getRemainingDays() {
+    if (_goalDeadline == null) return '30 days remaining';
+    
+    final remaining = _goalDeadline!.difference(DateTime.now()).inDays;
+    if (remaining < 0) {
+      return '${-remaining} days overdue';
     }
+    return '$remaining days remaining';
   }
 
-  /// Signs out the current user
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-
-  /// Deletes user account and data
-  Future<void> _deleteAccount() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: const Text('This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .delete();
-      await widget.user.delete();
-      if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
-  }
-
-  /// Formats currency values
-  String _format(double val) =>
-      NumberFormat.currency(symbol: 'Tsh ', decimalDigits: 0).format(val);
-
-  /// Builds savings overview card
-  Widget _buildSavingsOverviewCard() {
+  Widget _buildCategoryBreakdown() {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
@@ -412,598 +159,213 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Savings Overview',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: _editSavingsDetails,
-                ),
-              ],
+            const Text(
+              'Category Breakdown',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
             const Divider(),
-            if (_weeklyGoal > 0 || _monthlyGoal > 0) ...[
-              _buildSavingsProgressItem(
-                'Weekly Savings',
-                _balance,
-                _weeklyGoal,
-                Icons.calendar_today,
+            const SizedBox(height: 8),
+            // Income Categories
+            const Text(
+              'Income Categories',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
               ),
-              const SizedBox(height: 16),
-              _buildSavingsProgressItem(
-                'Monthly Savings',
-                _balance,
-                _monthlyGoal,
-                Icons.calendar_month,
+            ),
+            const SizedBox(height: 8),
+            ..._buildCategoryList(_incomeCategoryTotals, Colors.green.shade700),
+            const SizedBox(height: 16),
+            // Expense Categories
+            const Text(
+              'Expense Categories',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
               ),
-            ] else ...[
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'No savings goals set',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Set your weekly and monthly savings goals to track your progress',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _editSavingsDetails,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Savings Goals'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
+            const SizedBox(height: 8),
+            ..._buildCategoryList(_expenseCategoryTotals, Colors.red.shade700),
           ],
         ),
       ),
     );
   }
 
-  /// Builds savings progress item with progress bar
-  Widget _buildSavingsProgressItem(
-    String title,
-    double current,
-    double target,
-    IconData icon,
-  ) {
-    final progress = target > 0 ? (current / target).clamp(0.0, 1.0) : 0.0;
-    final isOverdue = target > 0 && current < target;
+  List<Widget> _buildCategoryList(Map<String, double> categories, Color color) {
+    final sortedCategories = categories.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return sortedCategories.map((entry) {
+      final total = color == Colors.green.shade700 ? _totalIncome : _totalExpense;
+      final percentage = total > 0 
+          ? ((entry.value / total) * 100).toStringAsFixed(1)
+          : '0.0';
+      
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(icon, color: Colors.blue, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
+            Icon(Icons.circle, size: 12, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                entry.key,
+                style: const TextStyle(fontSize: 14),
+              ),
             ),
+            Text(
+              _formatCurrency(entry.value),
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: isOverdue ? Colors.red.shade50 : Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '${(progress * 100).toStringAsFixed(1)}%',
+                '$percentage%',
                 style: TextStyle(
-                  color: isOverdue ? Colors.red.shade700 : Colors.blue.shade700,
                   fontSize: 12,
-                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _format(current),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isOverdue ? Colors.red.shade700 : Colors.black87,
-              ),
-            ),
-            Text(
-              _format(target),
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 6,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(
-              color: isOverdue ? Colors.red.shade200 : Colors.blue.shade200,
-              width: 1,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: isOverdue ? Colors.red.shade50 : Colors.blue.shade50,
-              color: isOverdue ? Colors.red.shade700 : Colors.blue.shade700,
-              minHeight: 6,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Shows dialog to edit savings goals
-  Future<void> _editSavingsDetails() async {
-    String weeklyGoal = _weeklyGoal.toString();
-    String monthlyGoal = _monthlyGoal.toString();
-    final formKey = GlobalKey<FormState>();
-
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Savings Details'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: weeklyGoal,
-                decoration: const InputDecoration(
-                  labelText: 'Weekly Savings Goal (Tsh)',
-                ),
-                keyboardType: TextInputType.number,
-                validator: (v) =>
-                    v == null || double.tryParse(v) == null
-                        ? 'Enter valid number'
-                        : null,
-                onSaved: (v) => weeklyGoal = v!,
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                initialValue: monthlyGoal,
-                decoration: const InputDecoration(
-                  labelText: 'Monthly Savings Goal (Tsh)',
-                ),
-                keyboardType: TextInputType.number,
-                validator: (v) =>
-                    v == null || double.tryParse(v) == null
-                        ? 'Enter valid number'
-                        : null,
-                onSaved: (v) => monthlyGoal = v!,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() ?? false) {
-                formKey.currentState!.save();
-                Navigator.pop(context);
-                setState(() => _isLoading = true);
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(widget.user.uid)
-                    .update({
-                      'weeklyGoal': double.parse(weeklyGoal),
-                      'monthlyGoal': double.parse(monthlyGoal),
-                    });
-                await _loadUserData();
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Shows coming soon dialog for future features
-  Future<void> _showComingSoonDialog() async {
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Coming Soon'),
-        content: const Text(
-          'This feature will be available in the next update!',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Builds profile avatar with photo
-  Widget _buildProfileAvatar() {
-    return CircleAvatar(
-      radius: 50,
-      backgroundColor: Colors.white,
-      backgroundImage: _photoUrl != null ? NetworkImage(_photoUrl!) : null,
-      child: _photoUrl == null
-          ? const Icon(Icons.person, size: 50, color: Colors.blue)
-          : null,
-    );
+      );
+    }).toList();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadUserData,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.grey[50],
+    appBar: AppBar(
+      title: const Text('Profile'),
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black87,
+      elevation: 0,
+    ),
+    body: RefreshIndicator(
+      onRefresh: _initializeData,
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Header Card
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    child: Container(
+                  if (_errorMessage.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage,
+                              style: TextStyle(color: Colors.red.shade700),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            onPressed: _initializeData,
+                            color: Colors.red.shade700,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  if (_isLoading)
+                    const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  else ...[
+                    ProfileCard(
+                      displayName: _name,
+                      occupation: _occupation,
+                      balance: _balance,
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Profile details coming soon!'),
+                          ),
+                        );
+                      },
+                      formatCurrency: _formatCurrency,
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.blue.shade700,
-                            Colors.blue.shade500,
+                            const Color(0xFF1976D2),
+                            const Color(0xFF1976D2).withOpacity(0.8),
                           ],
                         ),
-                      ),
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Stack(
-                            alignment: Alignment.bottomRight,
-                            children: [
-                              _buildProfileAvatar(),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.camera_alt,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: _pickOrChangePhoto,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _name,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _email,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Financial Stats Card
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 24,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Column(
-                            children: [
-                              const Icon(
-                                Icons.account_balance_wallet,
-                                color: Colors.blue,
-                                size: 28,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _format(_balance),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Balance',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            children: [
-                              Icon(
-                                Icons.arrow_downward,
-                                color: Colors.green.shade700,
-                                size: 28,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _format(_totalIncome),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green.shade700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Income',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            children: [
-                              Icon(
-                                Icons.arrow_upward,
-                                color: Colors.red.shade700,
-                                size: 28,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _format(_totalExpense),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red.shade700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Expense',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Savings Overview Card
-                  _buildSavingsOverviewCard(),
-                  const SizedBox(height: 24),
-                  // Budget Details Card
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Budget Details',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const Divider(),
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Budget tracking coming soon',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Set and track your monthly budget categories',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  onPressed: _showComingSoonDialog,
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Add Budget Details'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Current Goal Card
-                  if (_goalTitle.isNotEmpty) ...[
-                    Card(
-                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      elevation: 2,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Current Goal',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: () {
-                                    // TODO: Implement goal editing
-                                  },
-                                ),
-                              ],
+                      child: GoalProgress(
+                        title: _goalTitle.isEmpty ? 'Savings Goal' : _goalTitle,
+                        progress: _goalProgress,
+                        target: _goalTarget,
+                        remainingDays: _getRemainingDays(),
+                        formatCurrency: _formatCurrency,
+                        onEditPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Goal editing coming soon!'),
                             ),
-                            const Divider(),
-                            ListTile(
-                              leading: const Icon(
-                                Icons.flag,
-                                color: Colors.blue,
-                              ),
-                              title: Text(_goalTitle),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Target: ${_format(_goalTarget)}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  if (_goalDeadline != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Deadline: ${DateFormat('MMM d, y').format(_goalDeadline!)}',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                          );
+                        },
+                        onBudgetPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Budget management coming soon!'),
                             ),
-                            const SizedBox(height: 16),
-                            _buildSavingsProgressItem(
-                              'Progress',
-                              _balance,
-                              _goalTarget,
-                              Icons.flag,
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 24),
+                    _buildCategoryBreakdown(),
                   ],
-                  // Contact Info Card
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  @override
+  void dispose() {
+    _storageService.dispose();
+    super.dispose();
+  }
+}

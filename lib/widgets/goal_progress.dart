@@ -97,7 +97,7 @@ class GoalProgress extends StatelessWidget {
           Text(
             remainingDays,
             style: TextStyle(
-              color: DateTime.now().isAfter(DateTime.now()) 
+              color: remainingDays.contains('-') 
                   ? Colors.red[300]
                   : Colors.white70,
               fontSize: 11,

@@ -21,6 +21,11 @@ class OfflineStorageService {
   /// Initialize Hive and open boxes
   Future<void> initialize() async {
     try {
+      // Check if already initialized
+      if (_transactionsBox != null && _transactionsBox.isOpen) {
+        return;
+      }
+
       final appDocumentDir = await getApplicationDocumentsDirectory();
       await Hive.initFlutter(appDocumentDir.path);
       
@@ -29,8 +34,21 @@ class OfflineStorageService {
         Hive.registerAdapter(HiveTransactionAdapter());
       }
 
-      // Open boxes
-      _transactionsBox = await Hive.openBox<HiveTransaction>(transactionsBoxName);
+      // Open boxes with retry mechanism
+      int retryCount = 0;
+      while (retryCount < 3) {
+        try {
+          _transactionsBox = await Hive.openBox<HiveTransaction>(transactionsBoxName);
+          break;
+        } catch (e) {
+          retryCount++;
+          if (retryCount == 3) {
+            throw Exception('Failed to open Hive box after 3 attempts: $e');
+          }
+          // Wait before retrying with exponential backoff
+          await Future.delayed(Duration(seconds: 1 << retryCount));
+        }
+      }
 
       // Listen to connectivity changes and sync when online
       _connectivity.onConnectivityChanged.listen((ConnectivityResult result) async {
@@ -39,13 +57,21 @@ class OfflineStorageService {
             await syncWithCloud();
           } catch (e) {
             print('Error during auto-sync: $e');
+            // Store failed sync attempt for retry with context
+            _pendingOperations.add(() async {
+              try {
+                await syncWithCloud();
+              } catch (retryError) {
+                print('Retry sync failed: $retryError');
+                throw retryError; // Propagate error for batch processing
+              }
+            });
           }
         }
       });
     } catch (e) {
       print('Error initializing offline storage: $e');
-      // Ensure the error is propagated
-      rethrow;
+      throw Exception('Failed to initialize offline storage: $e');
     }
   }
 
@@ -74,44 +100,102 @@ class OfflineStorageService {
     }
   }
 
-  /// Get all transactions for a user
+  /// Get all transactions for a user with error handling and validation
   List<HiveTransaction> getTransactions(String userId) {
+    if (userId.isEmpty) {
+      throw ArgumentError('userId cannot be empty');
+    }
+
     try {
-      // Check cache first
-      if (_transactionsCache.containsKey(userId)) {
-        return _transactionsCache[userId]!;
+      // Ensure service is initialized
+      if (_transactionsBox == null || !_transactionsBox.isOpen) {
+        throw StateError('Storage service not initialized. Call initialize() first.');
       }
 
+      // Check cache first with timestamp validation
+      if (_transactionsCache.containsKey(userId)) {
+        final cachedData = _transactionsCache[userId]!;
+        // Return a defensive copy of cached data
+        return List.from(cachedData);
+      }
+
+      // Fetch and validate transactions
       final transactions = _transactionsBox.values
           .where((tx) => tx.userId == userId)
+          .map((tx) {
+            // Validate transaction data
+            if (tx.amount.isNaN || tx.amount.isInfinite) {
+              print('Warning: Invalid amount in transaction ${tx.id}');
+              return null;
+            }
+            if (tx.date.isAfter(DateTime.now().add(const Duration(days: 1)))) {
+              print('Warning: Future date in transaction ${tx.id}');
+              return null;
+            }
+            return tx;
+          })
+          .where((tx) => tx != null)
+          .cast<HiveTransaction>()
           .toList()
         ..sort((a, b) => b.date.compareTo(a.date));
       
-      // Update cache
-      _transactionsCache[userId] = transactions;
+      // Update cache with a defensive copy
+      _transactionsCache[userId] = List.from(transactions);
       
       return transactions;
     } catch (e) {
       print('Error getting transactions: $e');
-      return [];
+      throw StateError('Failed to retrieve transactions: $e');
     }
   }
 
-  /// Process pending operations in batch
+  /// Process pending operations in batch with improved error handling
   Future<void> _processPendingOperations() async {
     if (_isBatchProcessing || _pendingOperations.isEmpty) return;
 
     _isBatchProcessing = true;
+    int retryDelay = 1000; // Start with 1 second delay
+    int consecutiveFailures = 0;
+    
     try {
       // Process operations in batches of 5
       while (_pendingOperations.isNotEmpty) {
+        if (consecutiveFailures >= 3) {
+          print('Too many consecutive failures, pausing sync operations');
+          // Clear pending operations to prevent infinite retry
+          _pendingOperations.clear();
+          break;
+        }
+
         final batch = _pendingOperations.take(5).toList();
         _pendingOperations.removeRange(0, batch.length);
         
-        await Future.wait(
-          batch.map((operation) => operation()),
-          eagerError: false,
-        );
+        try {
+          await Future.wait(
+            batch.map((operation) => operation()),
+            eagerError: true,
+          );
+          // Reset counters on success
+          retryDelay = 1000;
+          consecutiveFailures = 0;
+        } catch (e) {
+          print('Error processing batch: $e');
+          consecutiveFailures++;
+          
+          // Add failed operations back to the queue
+          _pendingOperations.addAll(batch);
+          
+          // Implement exponential backoff with jitter
+          final jitter = (DateTime.now().millisecondsSinceEpoch % 1000) / 1000;
+          final delay = retryDelay * (1 + jitter);
+          await Future.delayed(Duration(milliseconds: delay.round()));
+          
+          retryDelay *= 2; // Double the delay for next retry
+          if (retryDelay > 32000) { // Cap at 32 seconds
+            retryDelay = 32000;
+          }
+          continue;
+        }
       }
     } finally {
       _isBatchProcessing = false;
@@ -176,18 +260,54 @@ class OfflineStorageService {
     }
   }
 
-  /// Sync all unsynced transactions with cloud
+  /// Sync all unsynced transactions with cloud with improved error handling
   Future<void> syncWithCloud() async {
+    if (!_transactionsBox.isOpen) {
+      throw StateError('Transaction box is not open');
+    }
+
     try {
+      final connectivityResult = await _connectivity.checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        throw StateError('No internet connection available');
+      }
+
       final unsynced = _transactionsBox.values.where((tx) => !tx.isSynced).toList();
-      
-      for (var transaction in unsynced) {
+      if (unsynced.isEmpty) return;
+
+      // Group transactions by user for batch processing
+      final transactionsByUser = <String, List<HiveTransaction>>{};
+      for (var tx in unsynced) {
+        transactionsByUser.putIfAbsent(tx.userId, () => []).add(tx);
+      }
+
+      // Process each user's transactions in batch
+      for (var entry in transactionsByUser.entries) {
+        final userId = entry.key;
+        final transactions = entry.value;
+
         try {
-          await _syncTransaction(transaction);
+          final batch = _firestore.batch();
+          for (var tx in transactions) {
+            final docRef = _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('transactions')
+                .doc(tx.id);
+            batch.set(docRef, tx.toJson());
+          }
+          await batch.commit();
+
+          // Mark transactions as synced
+          for (var tx in transactions) {
+            tx.isSynced = true;
+            await tx.save();
+          }
         } catch (e) {
-          print('Error syncing transaction ${transaction.id}: $e');
-          // Continue with next transaction even if one fails
-          continue;
+          print('Error syncing batch for user $userId: $e');
+          // Add failed batch to pending operations
+          _pendingOperations.add(() => syncWithCloud());
+          rethrow;
         }
       }
     } catch (e) {
