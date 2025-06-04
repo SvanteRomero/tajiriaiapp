@@ -1,22 +1,26 @@
 # Transaction Model (transaction.dart)
 
 ## Overview
+
 This file defines the Transaction model for the Tajiri AI application. It handles financial transaction data, including income and expenses, with proper categorization and tracking.
 
 ## Key Components
 
 ### TransactionType Enum
+
 ```dart
 enum TransactionType {
   income,
   expense
 }
 ```
+
 - Transaction categorization
 - Clear type distinction
 - Type safety
 
 ### Transaction Class
+
 ```dart
 class Transaction {
   final String username;
@@ -26,6 +30,7 @@ class Transaction {
   final TransactionType type;
 }
 ```
+
 - Transaction details
 - Amount tracking
 - Time tracking
@@ -33,6 +38,7 @@ class Transaction {
 ## Core Functionality
 
 ### Constructor
+
 ```dart
 Transaction({
   required this.username,
@@ -42,6 +48,7 @@ Transaction({
   required this.type,
 });
 ```
+
 - Required fields
 - Type validation
 - Clean initialization
@@ -49,6 +56,7 @@ Transaction({
 ### JSON Serialization
 
 #### To JSON
+
 ```dart
 Map<String, dynamic> toJson() => {
   'username': username,
@@ -58,11 +66,13 @@ Map<String, dynamic> toJson() => {
   'type': type.toString(),
 };
 ```
+
 - Data formatting
 - Date handling
 - Type conversion
 
 #### From JSON
+
 ```dart
 factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
   username: json['username'] as String,
@@ -74,6 +84,7 @@ factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
     : TransactionType.expense,
 );
 ```
+
 - Data parsing
 - Type conversion
 - Error handling
@@ -120,35 +131,42 @@ factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
 ## Implementation Notes
 
 1. **Type Handling**
+
    ```dart
    // Type conversion
    type: json['type'] == 'income' 
      ? TransactionType.income 
      : TransactionType.expense
    ```
+
    - Clear conversion
    - Type safety
    - Error prevention
 
 2. **Date Management**
+
    ```dart
    // Date handling
    date: DateTime.parse(json['date'] as String)
    ```
+
    - ISO format
    - Clean parsing
    - Error handling
 
 3. **Amount Processing**
+
    ```dart
    // Amount conversion
    amount: (json['amount'] as num).toDouble()
    ```
+
    - Type safety
    - Clean conversion
    - Value validation
 
 ## Notes
+
 - Core transaction model
 - Complete functionality
 - Clean implementation

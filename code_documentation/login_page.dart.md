@@ -1,16 +1,19 @@
 # Login Page (login_page.dart)
 
 ## Overview
+
 This file implements the user authentication interface for the Tajiri AI application. It handles user login through email/password and Google Sign-In, with proper validation and error handling.
 
 ## Key Components
 
 ### LoginPage Widget
+
 ```dart
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
 }
 ```
+
 - Authentication UI
 - Login methods
 - Error handling
@@ -18,12 +21,14 @@ class LoginPage extends StatefulWidget {
 ### State Management
 
 #### Form Controls
+
 ```dart
 final _formKey = GlobalKey<FormState>();
 final TextEditingController _emailController;
 final TextEditingController _passwordController;
 bool _isLoading = false;
 ```
+
 - Input management
 - Loading state
 - Form validation
@@ -31,6 +36,7 @@ bool _isLoading = false;
 ## Core Functionality
 
 ### Email Login
+
 ```dart
 Future<void> _loginWithEmail() async {
   // Form validation
@@ -39,11 +45,13 @@ Future<void> _loginWithEmail() async {
   // Navigation
 }
 ```
+
 - Credential validation
 - Authentication
 - Error messages
 
 ### Google Sign-In
+
 ```dart
 Future<void> _loginWithGoogle() async {
   // Google auth
@@ -52,6 +60,7 @@ Future<void> _loginWithGoogle() async {
   // Navigation
 }
 ```
+
 - OAuth flow
 - Account linking
 - Profile setup
@@ -59,6 +68,7 @@ Future<void> _loginWithGoogle() async {
 ## UI Components
 
 ### Login Form
+
 ```dart
 Form(
   key: _formKey,
@@ -72,6 +82,7 @@ Form(
   ),
 )
 ```
+
 - Input fields
 - Action buttons
 - Loading states
@@ -79,6 +90,7 @@ Form(
 ### Input Fields
 
 1. **Email Input**
+
    ```dart
    CustomInput(
      controller: _emailController,
@@ -86,11 +98,13 @@ Form(
      validator: InputValidators.email,
    )
    ```
+
    - Email validation
    - Error messages
    - Clear feedback
 
 2. **Password Input**
+
    ```dart
    CustomInput(
      controller: _passwordController,
@@ -99,6 +113,7 @@ Form(
      validator: InputValidators.password,
    )
    ```
+
    - Secure entry
    - Validation rules
    - Error display
@@ -150,6 +165,7 @@ Form(
 ## Implementation Notes
 
 1. **Form Structure**
+
    ```dart
    SingleChildScrollView(
      child: Form(
@@ -159,11 +175,13 @@ Form(
      ),
    )
    ```
+
    - Clean layout
    - Clear sections
    - Good spacing
 
 2. **Authentication Flow**
+
    ```dart
    try {
      // Auth attempt
@@ -174,11 +192,13 @@ Form(
      // User feedback
    }
    ```
+
    - Safe process
    - Error recovery
    - Clear feedback
 
 3. **Loading States**
+
    ```dart
    setState(() => _isLoading = true);
    try {
@@ -187,11 +207,13 @@ Form(
      setState(() => _isLoading = false);
    }
    ```
+
    - Clear feedback
    - Safe updates
    - Good UX
 
 ## Notes
+
 - Authentication interface
 - Multiple methods
 - Clean implementation

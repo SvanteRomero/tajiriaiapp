@@ -1,11 +1,13 @@
 # Empty Page Component (empty_page.dart)
 
 ## Overview
+
 This file implements a reusable empty state widget for the Tajiri AI application. It provides a consistent way to display placeholder content when there's no data to show, enhancing the user experience with clear visual feedback.
 
 ## Key Components
 
 ### EmptyPage Widget
+
 ```dart
 class EmptyPage extends StatelessWidget {
   final IconData pageIconData;
@@ -20,6 +22,7 @@ class EmptyPage extends StatelessWidget {
   });
 }
 ```
+
 - Empty state display
 - Visual feedback
 - User guidance
@@ -27,6 +30,7 @@ class EmptyPage extends StatelessWidget {
 ## Core Functionality
 
 ### Layout Structure
+
 ```dart
 Center(
   child: Column(
@@ -40,6 +44,7 @@ Center(
   ),
 )
 ```
+
 - Centered content
 - Vertical layout
 - Clean spacing
@@ -47,6 +52,7 @@ Center(
 ### Visual Elements
 
 #### Icon Display
+
 ```dart
 Icon(
   pageIconData,
@@ -54,11 +60,13 @@ Icon(
   color: Colors.grey[300],
 )
 ```
+
 - Large icon
 - Subtle coloring
 - Visual emphasis
 
 #### Text Content
+
 ```dart
 Text(
   pageTitle,
@@ -68,6 +76,7 @@ Text(
   ),
 )
 ```
+
 - Clear messaging
 - Proper hierarchy
 - Visual balance
@@ -119,6 +128,7 @@ Text(
 ## Implementation Notes
 
 1. **Widget Structure**
+
    ```dart
    StatelessWidget
    └── Center
@@ -129,11 +139,13 @@ Text(
            ├── SizedBox (spacing)
            └── Description Text
    ```
+
    - Clear hierarchy
    - Proper spacing
    - Logical flow
 
 2. **Style Choices**
+
    ```dart
    // Icon styling
    size: 80
@@ -147,11 +159,13 @@ Text(
    fontSize: 16
    color: Colors.grey[600]
    ```
+
    - Consistent look
    - Clear emphasis
    - Good readability
 
 3. **Spacing**
+
    ```dart
    // Between icon and title
    SizedBox(height: 16)
@@ -159,6 +173,7 @@ Text(
    // Between title and description
    SizedBox(height: 8)
    ```
+
    - Visual breathing
    - Proper hierarchy
    - Clean layout
@@ -166,6 +181,7 @@ Text(
 ## Usage Examples
 
 ### Transaction List
+
 ```dart
 EmptyPage(
   pageIconData: Icons.account_balance_wallet,
@@ -175,6 +191,7 @@ EmptyPage(
 ```
 
 ### Analytics View
+
 ```dart
 EmptyPage(
   pageIconData: Icons.bar_chart,
@@ -184,6 +201,7 @@ EmptyPage(
 ```
 
 ## Notes
+
 - Reusable component
 - Consistent design
 - Clear messaging

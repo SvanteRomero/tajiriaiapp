@@ -1,11 +1,13 @@
 # Main Application (main.dart)
 
 ## Overview
+
 This file serves as the entry point for the Tajiri AI application. It handles Firebase initialization, sets up the application structure, and manages authentication state.
 
 ## Key Components
 
 ### Application Entry
+
 ```dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,26 +15,31 @@ void main() async {
   runApp(const TajiriAiApp());
 }
 ```
+
 - Flutter initialization
 - Firebase setup
 - App launch
 
 ### Root Application Widget
+
 ```dart
 class TajiriAiApp extends StatelessWidget {
   const TajiriAiApp({Key? key}) : super(key: key);
 }
 ```
+
 - Material app setup
 - Route configuration
 - Theme definition
 
 ### Authentication Wrapper
+
 ```dart
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({Key? key}) : super(key: key);
 }
 ```
+
 - Auth state management
 - Navigation control
 - User context
@@ -40,16 +47,19 @@ class AuthWrapper extends StatelessWidget {
 ## Core Functionality
 
 ### Firebase Integration
+
 - Service initialization
 - Configuration setup
 - Error handling
 
 ### Route Management
+
 - Named routes
 - Screen mapping
 - Navigation paths
 
 ### Authentication Flow
+
 - Real-time auth state
 - User session
 - Navigation control
@@ -94,6 +104,7 @@ class AuthWrapper extends StatelessWidget {
    - Efficient routing
 
 ## Notes
+
 - Application entry point
 - Firebase integration
 - Authentication flow

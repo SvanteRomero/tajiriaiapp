@@ -1,11 +1,13 @@
 # User Model (userModel.dart)
 
 ## Overview
+
 This file defines the AppUser model for the Tajiri AI application. It encapsulates user profile information and financial details, providing a structured way to manage user data.
 
 ## Key Components
 
 ### AppUser Class
+
 ```dart
 class AppUser {
   final String name;
@@ -16,6 +18,7 @@ class AppUser {
   late final String? financialGoal;
 }
 ```
+
 - User information
 - Financial data
 - Optional fields
@@ -23,6 +26,7 @@ class AppUser {
 ## Core Functionality
 
 ### Constructor
+
 ```dart
 AppUser({
   required this.name,
@@ -32,6 +36,7 @@ AppUser({
   required this.email,
 });
 ```
+
 - Required fields
 - Optional fields
 - Late initialization
@@ -39,6 +44,7 @@ AppUser({
 ### JSON Serialization
 
 #### To JSON
+
 ```dart
 Map<String, dynamic> toJson() => {
   'name': name,
@@ -49,11 +55,13 @@ Map<String, dynamic> toJson() => {
   'financialGoal': financialGoal,
 };
 ```
+
 - Data formatting
 - Null handling
 - Complete mapping
 
 #### From JSON
+
 ```dart
 factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
   name: json['name'] as String,
@@ -63,6 +71,7 @@ factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
   savingsGoal: (json['savingsGoal'] as num).toDouble(),
 )..financialGoal = json['financialGoal'] as String?;
 ```
+
 - Data parsing
 - Default values
 - Type conversion
@@ -107,6 +116,7 @@ factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
    - Simple creation
 
 ## Notes
+
 - Core user model
 - Complete functionality
 - Clean implementation

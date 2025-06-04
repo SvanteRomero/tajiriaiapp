@@ -1,11 +1,13 @@
 # Input Component (input.dart)
 
 ## Overview
+
 This file implements a reusable input field component for the Tajiri AI application. It provides consistent styling, validation, and behavior across all form inputs in the application.
 
 ## Key Components
 
 ### CustomInput Widget
+
 ```dart
 class CustomInput extends StatelessWidget {
   final TextEditingController controller;
@@ -23,11 +25,13 @@ class CustomInput extends StatelessWidget {
   final bool enabled;
 }
 ```
+
 - Form input field
 - Validation support
 - Flexible configuration
 
 ### InputValidators Class
+
 ```dart
 class InputValidators {
   static String? email(String? value);
@@ -38,6 +42,7 @@ class InputValidators {
   static String? Function(String?) minLength(int length);
 }
 ```
+
 - Common validations
 - Reusable rules
 - Clear messages
@@ -45,6 +50,7 @@ class InputValidators {
 ## Core Functionality
 
 ### Input Configuration
+
 ```dart
 TextFormField(
   controller: controller,
@@ -57,6 +63,7 @@ TextFormField(
   ),
 )
 ```
+
 - Clean styling
 - Consistent look
 - Flexible options
@@ -64,6 +71,7 @@ TextFormField(
 ### Validation Functions
 
 #### Email Validation
+
 ```dart
 static String? email(String? value) {
   if (value == null || value.isEmpty) {
@@ -76,11 +84,13 @@ static String? email(String? value) {
   return null;
 }
 ```
+
 - Format checking
 - Required field
 - Clear messages
 
 #### Password Validation
+
 ```dart
 static String? password(String? value) {
   if (value == null || value.isEmpty) {
@@ -92,6 +102,7 @@ static String? password(String? value) {
   return null;
 }
 ```
+
 - Length check
 - Required field
 - Security rules
@@ -99,6 +110,7 @@ static String? password(String? value) {
 ## Usage Examples
 
 ### Basic Input
+
 ```dart
 CustomInput(
   controller: textController,
@@ -108,6 +120,7 @@ CustomInput(
 ```
 
 ### Email Input
+
 ```dart
 CustomInput(
   controller: emailController,
@@ -118,6 +131,7 @@ CustomInput(
 ```
 
 ### Password Input
+
 ```dart
 CustomInput(
   controller: passwordController,
@@ -174,6 +188,7 @@ CustomInput(
 ## Implementation Notes
 
 1. **Input Structure**
+
    ```dart
    TextFormField(
      // Controller
@@ -182,11 +197,13 @@ CustomInput(
      // Formatting
    )
    ```
+
    - Clean layout
    - Clear structure
    - Easy maintenance
 
 2. **Validation Rules**
+
    ```dart
    // Email regex
    r"^[^@]+@[^@]+\.[^@]+"
@@ -194,22 +211,26 @@ CustomInput(
    // Phone regex
    r'^\+?[\d\s-]{10,}$'
    ```
+
    - Clear patterns
    - Good coverage
    - Easy updates
 
 3. **Styling Constants**
+
    ```dart
    contentPadding: EdgeInsets.symmetric(
      horizontal: 16,
      vertical: 12,
    )
    ```
+
    - Consistent spacing
    - Clean look
    - Good readability
 
 ## Notes
+
 - Reusable component
 - Consistent validation
 - Clean styling
