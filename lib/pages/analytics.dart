@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
+import 'dart:math' as math;
 import 'package:tajiri_ai/components/empty_page.dart';
 import 'package:tajiri_ai/models/transaction.dart' as my_tx;
 
@@ -9,16 +11,20 @@ import 'package:tajiri_ai/models/transaction.dart' as my_tx;
 class CategoryData {
   final String category;
   final double value;
-  CategoryData({required this.category, required this.value});
+  final Color color;
+  CategoryData({
+    required this.category, 
+    required this.value, 
+    required this.color
+  });
 }
 
 /// Analytics screen displays financial insights and visualizations
-/// Shows spending patterns, savings progress, and transaction breakdowns
 class Analytics extends StatelessWidget {
-  /// Currently authenticated user
   final User user;
+  final _currencyFormat = NumberFormat.currency(symbol: 'Tsh ', decimalDigits: 0);
   
-  const Analytics({Key? key, required this.user}) : super(key: key);
+  Analytics({Key? key, required this.user}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +32,6 @@ class Analytics extends StatelessWidget {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot>(
-          // Real-time stream of user's transactions
           stream: FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
@@ -44,7 +49,6 @@ class Analytics extends StatelessWidget {
               );
             }
 
-            // Convert Firestore documents to Transaction objects
             final txs = snapshot.data!.docs.map((doc) {
               final d = doc.data()! as Map<String, dynamic>;
               return my_tx.Transaction(
@@ -58,188 +62,175 @@ class Analytics extends StatelessWidget {
               );
             }).toList();
 
-            // Calculate analytics data
             final topExpenses = _topCategories(txs, isIncome: false);
             final topIncomes = _topCategories(txs, isIncome: true);
             final dailyData = _aggregateByDayOfWeek(txs);
+            final monthlyData = _aggregateByMonth(txs);
             final weeklySavings = _calculateWeeklySavings(txs);
             final monthlySavings = _calculateMonthlySavings(txs);
+            final spendingTrends = _analyzeSpendingTrends(txs);
 
             return CustomScrollView(
               slivers: [
-                // Top metrics grid
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.2,
-                    ),
-                    delegate: SliverChildListDelegate([
-                      _styledMetricCard(
-                        'Top Expense',
-                        topExpenses.isNotEmpty
-                            ? topExpenses.first.value.toStringAsFixed(2)
-                            : '0.00',
-                        topExpenses.isNotEmpty
-                            ? topExpenses.first.category
-                            : 'N/A',
-                        Colors.red,
-                      ),
-                      _styledMetricCard(
-                        'Top Income',
-                        topIncomes.isNotEmpty
-                            ? topIncomes.first.value.toStringAsFixed(2)
-                            : '0.00',
-                        topIncomes.isNotEmpty
-                            ? topIncomes.first.category
-                            : 'N/A',
-                        Colors.green,
-                      ),
-                    ]),
-                  ),
-                ),
-                // Savings overview section
+                // Summary Cards
                 SliverToBoxAdapter(
-                  child: Padding(
+                  child: Container(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Savings Overview',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          'Financial Summary',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
                         const SizedBox(height: 16),
-                        _buildSavingsCard(
-                          'Weekly Savings',
-                          weeklySavings['saved'] ?? 0.0,
-                          weeklySavings['target'] ?? 0.0,
-                          const Color(0xFF1976D2),
+                        _buildSummaryCards(txs),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Spending Trends
+                SliverToBoxAdapter(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Spending Trends',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        _buildSavingsCard(
-                          'Monthly Savings',
-                          monthlySavings['saved'] ?? 0.0,
-                          monthlySavings['target'] ?? 0.0,
-                          const Color(0xFF1976D2),
+                        const SizedBox(height: 16),
+                        _buildTrendAnalysis(spendingTrends),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Monthly Overview Chart
+                SliverToBoxAdapter(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Monthly Overview',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 300,
+                          child: _buildMonthlyChart(monthlyData),
                         ),
                       ],
                     ),
                   ),
                 ),
-                // Weekly trends section
+
+                // Weekly Analysis
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 24,
-                    ),
-                    child: Text(
-                      'Weekly Trends',
-                      style: Theme.of(context).textTheme.titleMedium,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Weekly Analysis',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 300,
+                          child: _buildWeeklyChart(dailyData),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                // Line chart for weekly trends
+
+                // Category Breakdown
                 SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 250,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: LineChart(
-                        LineChartData(
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Category Breakdown',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          titlesData: FlTitlesData(
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildCategoryChart(
+                                'Expenses',
+                                topExpenses,
+                                Colors.red.shade400,
                               ),
                             ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (value, meta) => Text(
-                                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][value.toInt()],
-                                  style: const TextStyle(fontSize: 12),
-                                ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildCategoryChart(
+                                'Income',
+                                topIncomes,
+                                Colors.green.shade400,
                               ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          lineBarsData: [
-                            // Income line
-                            LineChartBarData(
-                              spots: List.generate(
-                                7,
-                                (index) => FlSpot(
-                                  index.toDouble(),
-                                  (dailyData[index]['income'] ?? 0.0),
-                                ),
-                              ),
-                              isCurved: true,
-                              color: Colors.green,
-                              barWidth: 3,
-                              dotData: FlDotData(show: false),
-                            ),
-                            // Expense line
-                            LineChartBarData(
-                              spots: List.generate(
-                                7,
-                                (index) => FlSpot(
-                                  index.toDouble(),
-                                  (dailyData[index]['expense'] ?? 0.0),
-                                ),
-                              ),
-                              isCurved: true,
-                              color: Colors.red,
-                              barWidth: 3,
-                              dotData: FlDotData(show: false),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
-                // Category breakdown section
+
+                // Savings Goals
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 24,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Savings Progress',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSavingsCard(
+                          'Weekly Target',
+                          weeklySavings['saved']!,
+                          weeklySavings['target']!,
+                          Colors.blue.shade700,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSavingsCard(
+                          'Monthly Target',
+                          monthlySavings['saved']!,
+                          monthlySavings['target']!,
+                          Colors.indigo.shade700,
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      'Breakdown',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                ),
-                // Pie charts grid
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1,
-                    ),
-                    delegate: SliverChildListDelegate([
-                      _styledChartCard(
-                        'Expenses',
-                        topExpenses,
-                        isExpense: true,
-                      ),
-                      _styledChartCard('Incomes', topIncomes, isExpense: false),
-                    ]),
                   ),
                 ),
               ],
@@ -250,49 +241,80 @@ class Analytics extends StatelessWidget {
     );
   }
 
-  /// Builds a styled metric card widget
-  Widget _styledMetricCard(
-    String title,
-    String value,
-    String label,
-    Color accent,
-  ) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [accent.withOpacity(0.1), Colors.white],
+  Widget _buildSummaryCards(List<my_tx.Transaction> txs) {
+    final totalIncome = txs
+        .where((tx) => tx.type == my_tx.TransactionType.income)
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+    
+    final totalExpense = txs
+        .where((tx) => tx.type == my_tx.TransactionType.expense)
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+
+    final balance = totalIncome - totalExpense;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMetricCard(
+            'Total Income',
+            _currencyFormat.format(totalIncome),
+            Icons.arrow_upward,
+            Colors.green.shade400,
           ),
         ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMetricCard(
+            'Total Expense',
+            _currencyFormat.format(totalExpense),
+            Icons.arrow_downward,
+            Colors.red.shade400,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMetricCard(
+            'Balance',
+            _currencyFormat.format(balance),
+            Icons.account_balance_wallet,
+            Colors.blue.shade700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 8),
             Text(
               title,
               style: TextStyle(
-                color: accent,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Tsh $value',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: accent,
+                color: Colors.grey.shade600,
+                fontSize: 12,
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              label,
-              style: const TextStyle(color: Colors.black54, fontSize: 12),
+              value,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -302,39 +324,399 @@ class Analytics extends StatelessWidget {
     );
   }
 
-  /// Builds a styled pie chart card widget
-  Widget _styledChartCard(
-    String title,
-    List<CategoryData> data, {
-    required bool isExpense,
-  }) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: PieChart(
-                PieChartData(
-                  sections: data.map((d) {
-                    final color = isExpense ? Colors.red : Colors.green;
-                    return PieChartSectionData(
-                      value: d.value,
-                      title: d.category,
-                      color: color.withOpacity(0.7),
-                      titleStyle: const TextStyle(fontSize: 11),
-                      radius: 50,
-                    );
-                  }).toList(),
+  Widget _buildWeeklyChart(List<Map<String, double>> dailyData) {
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 1000,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: Colors.grey.shade200,
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (value, meta) => Text(
+                _currencyFormat.format(value).split(' ')[1],
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 10,
                 ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) => Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][value.toInt()],
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: List.generate(
+              7,
+              (index) => FlSpot(
+                index.toDouble(),
+                dailyData[index]['income'] ?? 0.0,
+              ),
+            ),
+            isCurved: true,
+            color: Colors.green.shade400,
+            barWidth: 3,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: Colors.green.shade400.withOpacity(0.1),
+            ),
+          ),
+          LineChartBarData(
+            spots: List.generate(
+              7,
+              (index) => FlSpot(
+                index.toDouble(),
+                dailyData[index]['expense'] ?? 0.0,
+              ),
+            ),
+            isCurved: true,
+            color: Colors.red.shade400,
+            barWidth: 3,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: Colors.red.shade400.withOpacity(0.1),
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            tooltipBgColor: Colors.blueGrey.shade900,
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                return LineTooltipItem(
+                  '${spot.y.toStringAsFixed(0)}',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonthlyChart(List<Map<String, double>> monthlyData) {
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: monthlyData.fold(0.0, (max, data) => 
+          math.max(max, math.max(data['income'] ?? 0, data['expense'] ?? 0))
+        ) * 1.2,
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            tooltipBgColor: Colors.blueGrey.shade900,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                _currencyFormat.format(rod.toY),
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (value, meta) => Text(
+                _currencyFormat.format(value).split(' ')[1],
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final month = DateFormat('MMM').format(
+                  DateTime(2024, value.toInt() + 1),
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    month,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: List.generate(
+          monthlyData.length,
+          (index) => BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: monthlyData[index]['income'] ?? 0,
+                color: Colors.green.shade400,
+                width: 12,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+              BarChartRodData(
+                toY: monthlyData[index]['expense'] ?? 0,
+                color: Colors.red.shade400,
+                width: 12,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+            ],
+          ),
+        ),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 1000,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: Colors.grey.shade200,
+            strokeWidth: 1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChart(String title, List<CategoryData> data, Color baseColor) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: PieChart(
+                  PieChartData(
+                    sectionsSpace: 2,
+                    centerSpaceRadius: 30,
+                    sections: data.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      final total = data.fold(0.0, (sum, item) => sum + item.value);
+                      return PieChartSectionData(
+                        color: baseColor.withOpacity(1 - (index * 0.2)),
+                        value: item.value,
+                        title: '${(item.value / total * 100).toStringAsFixed(1)}%',
+                        radius: 60,
+                        titleStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Column(
+                children: data.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final item = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: baseColor.withOpacity(1 - (index * 0.2)),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.category,
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          _currencyFormat.format(item.value),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavingsCard(
+    String title,
+    double saved,
+    double target,
+    Color color,
+  ) {
+    final progress = target > 0 ? (saved / target).clamp(0.0, 1.0) : 0.0;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${(progress * 100).toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Saved',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currencyFormat.format(saved),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Target',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currencyFormat.format(target),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: color.withOpacity(0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+                minHeight: 8,
               ),
             ),
           ],
@@ -343,7 +725,79 @@ class Analytics extends StatelessWidget {
     );
   }
 
-  /// Aggregates transactions by day of week
+  Widget _buildTrendAnalysis(Map<String, dynamic> trends) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  trends['trend'] == 'up'
+                      ? Icons.trending_up
+                      : trends['trend'] == 'down'
+                          ? Icons.trending_down
+                          : Icons.trending_flat,
+                  color: trends['trend'] == 'up'
+                      ? Colors.red.shade400
+                      : trends['trend'] == 'down'
+                          ? Colors.green.shade400
+                          : Colors.blue.shade400,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Spending Trend',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              trends['message'],
+              style: const TextStyle(fontSize: 14),
+            ),
+            if (trends['recommendations'] != null) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Recommendations:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...trends['recommendations'].map<Widget>((rec) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_right, size: 16, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        rec,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )).toList(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Map<String, double>> _aggregateByDayOfWeek(List<my_tx.Transaction> txs) {
     final result = List.generate(7, (_) => {'income': 0.0, 'expense': 0.0});
     for (var tx in txs) {
@@ -357,11 +811,23 @@ class Analytics extends StatelessWidget {
     return result;
   }
 
-  /// Calculates top categories by transaction amount
+  List<Map<String, double>> _aggregateByMonth(List<my_tx.Transaction> txs) {
+    final result = List.generate(12, (_) => {'income': 0.0, 'expense': 0.0});
+    for (var tx in txs) {
+      final month = tx.date.month - 1;
+      if (tx.type == my_tx.TransactionType.income) {
+        result[month]['income'] = result[month]['income']! + tx.amount;
+      } else {
+        result[month]['expense'] = result[month]['expense']! + tx.amount;
+      }
+    }
+    return result;
+  }
+
   List<CategoryData> _topCategories(
     List<my_tx.Transaction> txs, {
     required bool isIncome,
-    int topN = 3,
+    int topN = 5,
   }) {
     final Map<String, double> totals = {};
     for (var tx in txs.where(
@@ -370,127 +836,20 @@ class Analytics extends StatelessWidget {
     )) {
       totals[tx.description] = (totals[tx.description] ?? 0) + tx.amount;
     }
-    final sorted = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    
+    final sorted = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
     return sorted
         .take(topN)
-        .map((e) => CategoryData(category: e.key, value: e.value))
+        .map((e) => CategoryData(
+          category: e.key,
+          value: e.value,
+          color: isIncome ? Colors.green.shade400 : Colors.red.shade400,
+        ))
         .toList();
   }
 
-  /// Calculates maximum Y value for charts
-  double _calculateMaxY(List<Map<String, double>> dailyData) {
-    double maxValue = 0;
-    for (var day in dailyData) {
-      maxValue = maxValue < (day['income'] ?? 0) ? (day['income'] ?? 0) : maxValue;
-      maxValue = maxValue < (day['expense'] ?? 0) ? (day['expense'] ?? 0) : maxValue;
-    }
-    // Round up to the nearest thousand and add padding
-    return (maxValue / 1000).ceil() * 1000 + 1000;
-  }
-
-  /// Builds a savings progress card widget
-  Widget _buildSavingsCard(
-    String title,
-    double saved,
-    double target,
-    Color color,
-  ) {
-    final progress = target > 0 ? (saved / target).clamp(0.0, 1.0) : 0.0;
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF1976D2),
-              const Color(0xFF1976D2).withOpacity(0.8),
-            ],
-          ),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${(progress * 100).toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Tsh ${saved.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Target: Tsh ${target.toStringAsFixed(0)}',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              height: 6,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.white.withOpacity(0.1),
-                  color: Colors.white,
-                  minHeight: 6,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Calculates weekly savings and target
   Map<String, double> _calculateWeeklySavings(List<my_tx.Transaction> txs) {
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
@@ -509,13 +868,10 @@ class Analytics extends StatelessWidget {
       }
     }
 
-    // Example weekly target (configurable)
     const weeklyTarget = 50000.0;
-
     return {'saved': income - expenses, 'target': weeklyTarget};
   }
 
-  /// Calculates monthly savings and target
   Map<String, double> _calculateMonthlySavings(List<my_tx.Transaction> txs) {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
@@ -534,9 +890,78 @@ class Analytics extends StatelessWidget {
       }
     }
 
-    // Example monthly target (configurable)
     const monthlyTarget = 200000.0;
-
     return {'saved': income - expenses, 'target': monthlyTarget};
   }
-}
+
+  double _calculateAverageDailySpending(List<my_tx.Transaction> txs) {
+    if (txs.isEmpty) return 0.0;
+    
+    final expenses = txs
+        .where((tx) => tx.type == my_tx.TransactionType.expense)
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+    
+    return expenses / txs.length;
+  }
+
+  Map<String, dynamic> _analyzeSpendingTrends(List<my_tx.Transaction> txs) {
+    // Sort transactions by date
+    final sortedTxs = List<my_tx.Transaction>.from(txs)
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    if (sortedTxs.length < 2) {
+      return {
+        'trend': 'neutral',
+        'message': 'Not enough data to analyze spending trends.',
+      };
+    }
+
+    // Calculate average daily spending for first and last week
+    final firstWeekSpending = _calculateAverageDailySpending(
+      sortedTxs.take(7).toList(),
+    );
+    final lastWeekSpending = _calculateAverageDailySpending(
+      sortedTxs.skip(sortedTxs.length - 7).toList(),
+    );
+
+    final percentageChange = ((lastWeekSpending - firstWeekSpending) / 
+                            firstWeekSpending * 100).abs();
+
+    String trend;
+    String message;
+    List<String> recommendations = [];
+
+    if (lastWeekSpending > firstWeekSpending * 1.1) {
+      trend = 'up';
+      message = 'Your spending has increased by ${percentageChange.toStringAsFixed(1)}% '
+               'compared to your usual pattern.';
+      recommendations = [
+        'Review your recent expenses to identify non-essential spending',
+        'Consider setting up category-specific budgets',
+        'Look for areas where you can reduce discretionary spending',
+        'Try to maintain your previous spending levels to improve savings',
+      ];
+    } else if (lastWeekSpending < firstWeekSpending * 0.9) {
+      trend = 'down';
+      message = 'Your spending has decreased by ${percentageChange.toStringAsFixed(1)}% '
+               'compared to your usual pattern. Great job!';
+      recommendations = [
+        'Consider allocating the extra savings towards your financial goals',
+        'Maintain these positive spending habits',
+        'Look for additional ways to optimize your regular expenses',
+      ];
+    } else {
+      trend = 'neutral';
+      message = 'Your spending pattern has remained stable.';
+      recommendations = [
+        'Continue monitoring your expenses regularly',
+        'Look for opportunities to optimize your spending',
+        'Consider setting more ambitious savings goals',
+      ];
+    }
+
+    return {
+      'trend': trend,
+      'message': message,
+      'recommendations': recommendations,
+    };
