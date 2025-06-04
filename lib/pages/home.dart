@@ -569,8 +569,191 @@ class _HomeState extends State<Home> {
   String _formatCurrency(double amount) =>
       NumberFormat.currency(symbol: 'Tsh ', decimalDigits: 0).format(amount);
 
+  // Extracted profile card widget
+  Widget _buildProfileCard() => GestureDetector(
+    onTap: () {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProfilePage(user: widget.user),
+        ),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF1976D2),
+            const Color(0xFF1976D2).withOpacity(0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1976D2).withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hello, ${_displayName.isNotEmpty ? _displayName : 'User'}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (_occupation.isNotEmpty)
+                      Text(
+                        _occupation,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ValueListenableBuilder<double>(
+              valueListenable: _currentBalanceNotifier,
+              builder: (context, balance, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Current Balance',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatCurrency(balance),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  // Extracted transaction item widget
+  Widget _buildTransactionItem(my_model.Transaction tx) => Dismissible(
+    key: Key(tx.date.toIso8601String() + tx.description),
+    direction: DismissDirection.endToStart,
+    background: Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20.0),
+      color: Colors.red,
+      child: const Icon(Icons.delete, color: Colors.white),
+    ),
+    confirmDismiss: (direction) async {
+      return await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Transaction'),
+          content: const Text('Are you sure you want to delete this transaction?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+    },
+    onDismissed: (direction) async {
+      try {
+        final offlineStorage = Provider.of<OfflineStorageService>(
+          context,
+          listen: false
+        );
+        
+        final transactionId = tx.date.millisecondsSinceEpoch.toString() + 
+                            tx.description;
+        
+        await offlineStorage.deleteTransaction(
+          transactionId,
+          widget.user.uid,
+        );
+
+        if (mounted) {
+          setState(() {
+            _transactions.remove(tx);
+          });
+          _calculateGoalProgress();
+          _updateFinancialMetrics();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaction deleted successfully'),
+              backgroundColor: Color(0xFF1976D2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting transaction: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    },
+    child: ListTile(
+      leading: Icon(
+        tx.type == my_model.TransactionType.income
+            ? Icons.arrow_downward
+            : Icons.arrow_upward,
+        color: tx.type == my_model.TransactionType.income
+            ? Colors.green
+            : Colors.red,
+      ),
+      title: Text(tx.description),
+      subtitle: Text(DateFormat.yMMMd().format(tx.date)),
+      trailing: Text(
+        '${tx.type == my_model.TransactionType.income ? '+' : '-'} ${_formatCurrency(tx.amount)}',
+        style: TextStyle(
+          color: tx.type == my_model.TransactionType.income
+              ? Colors.green
+              : Colors.red,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  );
+
   /// Builds empty state widget when no transactions exist
-  Widget _buildEmptyState() => EmptyPage(
+  Widget _buildEmptyState() => const EmptyPage(
     pageIconData: Icons.add_box_outlined,
     pageTitle: 'No Transactions Yet',
     pageDescription: "Tap '+' to add your first transaction",
@@ -771,9 +954,49 @@ class _HomeState extends State<Home> {
     return '$difference days left';
   }
 
+  // Memoize expensive calculations
+  final ValueNotifier<double> _totalIncomeNotifier = ValueNotifier(0.0);
+  final ValueNotifier<double> _totalExpenseNotifier = ValueNotifier(0.0);
+  final ValueNotifier<double> _currentBalanceNotifier = ValueNotifier(0.0);
+
+  @override
+  void dispose() {
+    _totalIncomeNotifier.dispose();
+    _totalExpenseNotifier.dispose();
+    _currentBalanceNotifier.dispose();
+    super.dispose();
+  }
+
+  // Update financial metrics in the background
+  void _updateFinancialMetrics() {
+    compute<List<my_model.Transaction>, Map<String, double>>((transactions) {
+      double income = 0.0;
+      double expense = 0.0;
+      
+      for (var tx in transactions) {
+        if (tx.type == my_model.TransactionType.income) {
+          income += tx.amount;
+        } else {
+          expense += tx.amount;
+        }
+      }
+      
+      return {
+        'income': income,
+        'expense': expense,
+        'balance': income - expense,
+      };
+    }, _transactions).then((metrics) {
+      if (!mounted) return;
+      
+      _totalIncomeNotifier.value = metrics['income']!;
+      _totalExpenseNotifier.value = metrics['expense']!;
+      _currentBalanceNotifier.value = metrics['balance']!;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    print('Building UI - Goal Title: $_goalTitle, Progress: $_goalProgress');
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddTransactionDialog(),
@@ -789,19 +1012,25 @@ class _HomeState extends State<Home> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                    // User profile card
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ProfilePage(user: widget.user),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
+                    // User profile card - Extract to separate widget for better performance
+                    _buildProfileCard(),
+                    const SizedBox(height: 24),
+                    // Transactions section
+                    const Text(
+                      'Recent Transactions',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Transaction list using ListView.builder for better performance
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _transactions.length,
+                      itemBuilder: (context, index) => _buildTransactionItem(_transactions[index]),
+                    ),
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
@@ -1031,16 +1260,23 @@ class _HomeState extends State<Home> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Transaction list
-                    ..._transactions.map(
-                      (tx) => Dismissible(
-                        key: Key(tx.date.toIso8601String() + tx.description),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20.0),
-                          color: Colors.red,
-                          child: const Icon(Icons.delete, color: Colors.white),
+                    const SizedBox(height: 24),
+                    // Transactions section
+                    const Text(
+                      'Recent Transactions',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Transaction list using ListView.builder for better performance
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _transactions.length,
+                      itemBuilder: (context, index) => _buildTransactionItem(_transactions[index]),
+                    ),
                         ),
                         confirmDismiss: (direction) async {
                           return await showDialog(

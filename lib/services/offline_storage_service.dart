@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import '../models/hive/transaction_model.dart';
 
 class OfflineStorageService {
@@ -9,6 +10,13 @@ class OfflineStorageService {
   late Box<HiveTransaction> _transactionsBox;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Connectivity _connectivity = Connectivity();
+  
+  // Cache for transactions to avoid frequent box reads
+  Map<String, List<HiveTransaction>> _transactionsCache = {};
+  
+  // Batch operation queue
+  final List<Future Function()> _pendingOperations = [];
+  bool _isBatchProcessing = false;
 
   /// Initialize Hive and open boxes
   Future<void> initialize() async {
@@ -44,13 +52,22 @@ class OfflineStorageService {
   /// Add a transaction locally
   Future<void> addTransaction(HiveTransaction transaction) async {
     try {
+      // Update local storage
       await _transactionsBox.put(transaction.id, transaction);
       
-      // Try to sync immediately if online
-      final connectivityResult = await _connectivity.checkConnectivity();
-      if (connectivityResult != ConnectivityResult.none) {
-        await _syncTransaction(transaction);
-      }
+      // Clear cache
+      _clearCache(transaction.userId);
+      
+      // Queue cloud sync
+      _pendingOperations.add(() async {
+        final connectivityResult = await _connectivity.checkConnectivity();
+        if (connectivityResult != ConnectivityResult.none) {
+          await _syncTransaction(transaction);
+        }
+      });
+
+      // Process pending operations
+      unawaited(_processPendingOperations());
     } catch (e) {
       print('Error adding transaction: $e');
       rethrow;
@@ -60,12 +77,18 @@ class OfflineStorageService {
   /// Get all transactions for a user
   List<HiveTransaction> getTransactions(String userId) {
     try {
+      // Check cache first
+      if (_transactionsCache.containsKey(userId)) {
+        return _transactionsCache[userId]!;
+      }
+
       final transactions = _transactionsBox.values
           .where((tx) => tx.userId == userId)
-          .toList();
+          .toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
       
-      // Sort by date descending
-      transactions.sort((a, b) => b.date.compareTo(a.date));
+      // Update cache
+      _transactionsCache[userId] = transactions;
       
       return transactions;
     } catch (e) {
@@ -74,27 +97,60 @@ class OfflineStorageService {
     }
   }
 
+  /// Process pending operations in batch
+  Future<void> _processPendingOperations() async {
+    if (_isBatchProcessing || _pendingOperations.isEmpty) return;
+
+    _isBatchProcessing = true;
+    try {
+      // Process operations in batches of 5
+      while (_pendingOperations.isNotEmpty) {
+        final batch = _pendingOperations.take(5).toList();
+        _pendingOperations.removeRange(0, batch.length);
+        
+        await Future.wait(
+          batch.map((operation) => operation()),
+          eagerError: false,
+        );
+      }
+    } finally {
+      _isBatchProcessing = false;
+    }
+  }
+
+  /// Clear cache for a user
+  void _clearCache(String userId) {
+    _transactionsCache.remove(userId);
+  }
+
   /// Delete a transaction both locally and from cloud
   Future<void> deleteTransaction(String transactionId, String userId) async {
     try {
       // Delete from local storage
       await _transactionsBox.delete(transactionId);
+      
+      // Clear cache
+      _clearCache(userId);
 
-      // Try to delete from cloud if online
-      final connectivityResult = await _connectivity.checkConnectivity();
-      if (connectivityResult != ConnectivityResult.none) {
-        try {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('transactions')
-              .doc(transactionId)
-              .delete();
-        } catch (e) {
-          print('Error deleting from cloud: $e');
-          // Continue as the local delete was successful
+      // Queue cloud delete
+      _pendingOperations.add(() async {
+        final connectivityResult = await _connectivity.checkConnectivity();
+        if (connectivityResult != ConnectivityResult.none) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId)
+                .collection('transactions')
+                .doc(transactionId)
+                .delete();
+          } catch (e) {
+            print('Error deleting from cloud: $e');
+          }
         }
-      }
+      });
+
+      // Process pending operations
+      unawaited(_processPendingOperations());
     } catch (e) {
       print('Error deleting transaction: $e');
       rethrow;
