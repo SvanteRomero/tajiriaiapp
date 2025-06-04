@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:tajiri_ai/pages/profile_page.dart';
 import '../models/transaction.dart' as my_model;
+import '../models/hive/transaction_model.dart';
+import '../services/offline_storage_service.dart';
 import 'package:tajiri_ai/components/empty_page.dart';
 
 /// Home is the main dashboard screen of the application
@@ -37,13 +40,47 @@ class _HomeState extends State<Home> {
   double _goalProgress = 0;
   String? _currentGoalId;
 
+  bool _isFetching = false;
+
   @override
   void initState() {
     super.initState();
     // Fetch initial data
-    _fetchUserInfo();
-    _fetchTransactions();
-    _fetchCurrentGoal();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    if (_isFetching) return;
+    
+    setState(() {
+      _isFetching = true;
+      _isLoading = true;
+    });
+
+    try {
+      await Future.wait([
+        _fetchUserInfo(),
+        _fetchTransactions(),
+        _fetchCurrentGoal(),
+      ]);
+    } catch (e) {
+      print('Error initializing data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading data: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetching = false;
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   /// Fetches user profile information from Firestore
@@ -430,37 +467,88 @@ class _HomeState extends State<Home> {
     );
   }
 
-  /// Fetches user's transactions from Firestore
+  /// Fetches user's transactions from local storage and syncs with Firestore
   Future<void> _fetchTransactions() async {
+    if (!mounted) return;
+    
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .collection('transactions')
-          .orderBy('date', descending: true)
-          .get();
+      final offlineStorage = Provider.of<OfflineStorageService>(context, listen: false);
+      // Get transactions from local storage
+      final localTransactions = offlineStorage.getTransactions(widget.user.uid);
+      
+      // Convert Hive transactions to app model
+      final transactions = localTransactions.map((tx) => my_model.Transaction(
+        username: tx.username,
+        description: tx.description,
+        amount: tx.amount,
+        date: tx.date,
+        type: tx.type == 'income' 
+            ? my_model.TransactionType.income 
+            : my_model.TransactionType.expense,
+      )).toList();
 
-      final transactions = snapshot.docs.map((doc) {
-        final data = doc.data();
-        final type = (data['type'] as String) == 'income'
-            ? my_model.TransactionType.income
-            : my_model.TransactionType.expense;
-        return my_model.Transaction(
-          username: data['username'] ?? '',
-          description: data['description'] ?? '',
-          amount: (data['amount'] as num).toDouble(),
-          date: (data['date'] as Timestamp).toDate(),
-          type: type,
+      if (mounted) {
+        setState(() {
+          _transactions = transactions;
+          _calculateGoalProgress();
+        });
+      }
+
+      // Try to sync with cloud in background if not already fetching
+      if (!_isFetching) {
+        try {
+          await Future.wait([
+            offlineStorage.downloadFromCloud(widget.user.uid),
+            offlineStorage.syncWithCloud(),
+          ]);
+        } catch (e) {
+          print('Error during cloud sync: $e');
+          // Show a non-intrusive sync error message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Sync error: ${e.toString()}'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
+      
+      // Refresh local transactions after sync if still mounted
+      if (mounted) {
+        final updatedTransactions = offlineStorage.getTransactions(widget.user.uid);
+        if (updatedTransactions.length != localTransactions.length) {
+        setState(() {
+          _transactions = updatedTransactions.map((tx) => my_model.Transaction(
+            username: tx.username,
+            description: tx.description,
+            amount: tx.amount,
+            date: tx.date,
+            type: tx.type == 'income' 
+                ? my_model.TransactionType.income 
+                : my_model.TransactionType.expense,
+          )).toList();
+          _calculateGoalProgress();
+        });
+      }
+    } catch (e) {
+      print('Error fetching transactions: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading transactions: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _initializeData,
+            ),
+          ),
         );
-      }).toList();
-
-      setState(() {
-        _transactions = transactions;
-        _isLoading = false;
-        _calculateGoalProgress();
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -590,11 +678,26 @@ class _HomeState extends State<Home> {
                     };
 
                     try {
-                      await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(widget.user.uid)
-                          .collection('transactions')
-                          .add(transaction);
+                      final offlineStorage = Provider.of<OfflineStorageService>(
+                        context, 
+                        listen: false
+                      );
+
+                      // Create unique ID for transaction
+                      final transactionId = DateTime.now().millisecondsSinceEpoch.toString();
+                      
+                      // Save to local storage
+                      await offlineStorage.addTransaction(
+                        HiveTransaction(
+                          id: transactionId,
+                          username: _displayName,
+                          description: description,
+                          amount: amount,
+                          date: selectedDate,
+                          type: type == my_model.TransactionType.income ? 'income' : 'expense',
+                          userId: widget.user.uid,
+                        ),
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
@@ -672,13 +775,20 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     print('Building UI - Goal Title: $_goalTitle, Progress: $_goalProgress');
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddTransactionDialog(),
+        child: const Icon(Icons.add),
+        backgroundColor: const Color(0xFF1976D2),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : (_transactions.isEmpty
               ? _buildEmptyState()
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
+              : RefreshIndicator(
+                  onRefresh: _initializeData,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
                     // User profile card
                     GestureDetector(
                       onTap: () {
@@ -923,7 +1033,74 @@ class _HomeState extends State<Home> {
                     const SizedBox(height: 8),
                     // Transaction list
                     ..._transactions.map(
-                      (tx) => ListTile(
+                      (tx) => Dismissible(
+                        key: Key(tx.date.toIso8601String() + tx.description),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20.0),
+                          color: Colors.red,
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        confirmDismiss: (direction) async {
+                          return await showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Delete Transaction'),
+                              content: const Text('Are you sure you want to delete this transaction?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        onDismissed: (direction) async {
+                          try {
+                            final offlineStorage = Provider.of<OfflineStorageService>(
+                              context,
+                              listen: false
+                            );
+                            
+                            final transactionId = tx.date.millisecondsSinceEpoch.toString() + 
+                                                tx.description;
+                            
+                            await offlineStorage.deleteTransaction(
+                              transactionId,
+                              widget.user.uid,
+                            );
+
+                            if (mounted) {
+                              setState(() {
+                                _transactions.remove(tx);
+                              });
+                              _calculateGoalProgress();
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Transaction deleted successfully'),
+                                  backgroundColor: Color(0xFF1976D2),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error deleting transaction: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: ListTile(
                         leading: Icon(
                           tx.type == my_model.TransactionType.income
                               ? Icons.arrow_downward

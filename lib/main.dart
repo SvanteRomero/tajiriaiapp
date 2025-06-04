@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:provider/provider.dart';
+import 'services/offline_storage_service.dart';
 
 // Import application pages
 import 'pages/login_page.dart';
@@ -17,6 +19,10 @@ void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize offline storage first
+  final offlineStorage = OfflineStorageService();
+  await offlineStorage.initialize();
+
   // Initialize Firebase core functionality
   await Firebase.initializeApp();
 
@@ -27,6 +33,9 @@ void main() async {
     appleProvider: AppleProvider.debug,
   );
 
+  // Enable Firebase Auth persistence and initialize Auth
+  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  
   // Initialize Firebase services:
   // - Authentication for user management
   // - Firestore for database operations
@@ -46,29 +55,37 @@ class TajiriAiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tajiri AI',
-      debugShowCheckedModeBanner: false,
-      // Define named routes for navigation
-      routes: {
-        '/login': (context) => const LoginPage(),
-        '/register': (context) => const RegisterPage(),
-      },
-      // StreamBuilder listens to authentication state changes
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          // Show loading indicator while checking auth state
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          // Navigate to HomePage if user is authenticated
-          if (snapshot.hasData) {
-            return HomePage(user: snapshot.data!);
-          }
-          // Show LoginPage if user is not authenticated
-          return const LoginPage();
+    return MultiProvider(
+      providers: [
+        Provider<OfflineStorageService>(
+          create: (_) => OfflineStorageService(),
+          dispose: (_, service) => service.dispose(),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Tajiri AI',
+        debugShowCheckedModeBanner: false,
+        // Define named routes for navigation
+        routes: {
+          '/login': (context) => const LoginPage(),
+          '/register': (context) => const RegisterPage(),
         },
+        // StreamBuilder listens to authentication state changes
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            // Show loading indicator while checking auth state
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            // Navigate to HomePage if user is authenticated
+            if (snapshot.hasData) {
+              return HomePage(user: snapshot.data!);
+            }
+            // Show LoginPage if user is not authenticated
+            return const LoginPage();
+          },
+        ),
       ),
     );
   }
