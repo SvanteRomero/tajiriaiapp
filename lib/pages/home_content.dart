@@ -13,15 +13,19 @@ import '../widgets/transaction_item.dart';
 import '../widgets/goal_progress.dart';
 import 'package:tajiri_ai/components/empty_page.dart';
 
-class Home extends StatefulWidget {
+/// HomeContent is the main dashboard screen of the application
+/// Displays user's financial overview, current goals, and recent transactions
+class HomeContent extends StatefulWidget {
+  /// Currently authenticated user
   final User user;
-  const Home({Key? key, required this.user}) : super(key: key);
+  
+  const HomeContent({Key? key, required this.user}) : super(key: key);
 
   @override
-  State<Home> createState() => _HomeState();
+  State<HomeContent> createState() => _HomeContentState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeContentState extends State<HomeContent> {
   bool _isLoading = true;
   bool _isFetching = false;
   List<my_model.Transaction> _transactions = [];
