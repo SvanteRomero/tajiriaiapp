@@ -43,6 +43,8 @@ dependencies:
   google_sign_in: ^6.2.1
   firebase_app_check: ^0.2.1+8
   provider: ^6.1.1
+  flutter_colorpicker: ^1.1.0
+  font_awesome_flutter: ^10.8.0
 
 
 flutter_launcher_icons:

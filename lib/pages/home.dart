@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:tajiri_ai/pages/profile_page.dart';
+import 'package:tajiri_ai/pages/add_expense.dart';
 import '../models/transaction.dart' as my_model;
 import 'package:tajiri_ai/components/empty_page.dart';
 
@@ -470,198 +471,13 @@ class _HomeState extends State<Home> {
     pageDescription: "Tap '+' to add your first transaction",
   );
 
-  void _showAddTransactionDialog() {
-    final descriptionController = TextEditingController();
-    final amountController = TextEditingController();
-    DateTime selectedDate = DateTime.now();
-    my_model.TransactionType type = my_model.TransactionType.expense;
-    bool isSubmitting = false;
-
-    showDialog(
-      context: context,
-      builder:
-          (_) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => Stack(
-                  children: [
-                    AlertDialog(
-                      title: const Text('Add Transaction'),
-                      content: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            DropdownButtonFormField<my_model.TransactionType>(
-                              value: type,
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setDialogState(() => type = val);
-                                }
-                              },
-                              items: const [
-                                DropdownMenuItem(
-                                  value: my_model.TransactionType.income,
-                                  child: Text('Income'),
-                                ),
-                                DropdownMenuItem(
-                                  value: my_model.TransactionType.expense,
-                                  child: Text('Expense'),
-                                ),
-                              ],
-                            ),
-                            TextField(
-                              controller: descriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Description',
-                              ),
-                            ),
-                            TextField(
-                              controller: amountController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Amount',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Date: ${DateFormat.yMMMd().format(selectedDate)}',
-                                ),
-                                TextButton(
-                                  onPressed: () async {
-                                    final pickedDate = await showDatePicker(
-                                      context: context,
-                                      initialDate: selectedDate,
-                                      firstDate: DateTime(2020),
-                                      lastDate: DateTime.now(),
-                                    );
-                                    if (pickedDate != null) {
-                                      setDialogState(
-                                        () => selectedDate = pickedDate,
-                                      );
-                                    }
-                                  },
-                                  child: const Text('Pick Date'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed:
-                              isSubmitting
-                                  ? null
-                                  : () => Navigator.pop(context),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed:
-                              isSubmitting
-                                  ? null
-                                  : () async {
-                                    final description =
-                                        descriptionController.text.trim();
-                                    final amount =
-                                        double.tryParse(
-                                          amountController.text.trim(),
-                                        ) ??
-                                        0;
-                                    if (description.isEmpty || amount <= 0)
-                                      return;
-
-                                    setDialogState(() => isSubmitting = true);
-
-                                    final transaction = {
-                                      'username': _displayName,
-                                      'description': description,
-                                      'amount': amount,
-                                      'date': Timestamp.fromDate(selectedDate),
-                                      'type':
-                                          type ==
-                                                  my_model
-                                                      .TransactionType
-                                                      .income
-                                              ? 'income'
-                                              : 'expense',
-                                    };
-
-                                    try {
-                                      await FirebaseFirestore.instance
-                                          .collection('users')
-                                          .doc(widget.user.uid)
-                                          .collection('transactions')
-                                          .add(transaction);
-
-                                      if (context.mounted) {
-                                        Navigator.pop(context);
-                                        await _fetchTransactions();
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Error adding transaction: ${e.toString()}',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                        setDialogState(
-                                          () => isSubmitting = false,
-                                        );
-                                      }
-                                    }
-                                  },
-                          child: const Text('Add'),
-                        ),
-                      ],
-                    ),
-                    if (isSubmitting)
-                      Container(
-                        color: Colors.black54,
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0.0, end: 1.0),
-                                duration: const Duration(milliseconds: 500),
-                                builder: (context, value, child) {
-                                  return Opacity(
-                                    opacity: value,
-                                    child: Transform.translate(
-                                      offset: Offset(0, 20 * (1 - value)),
-                                      child: const Text(
-                                        'Adding Transaction...',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-          ),
-    );
+  void _navigateToAddTransaction() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddExpense(userId: widget.user.uid),
+      ),
+    ).then((_) => _fetchTransactions());
   }
 
   String _getRemainingDays() {
@@ -997,7 +813,7 @@ class _HomeState extends State<Home> {
                     ],
                   )),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddTransactionDialog,
+        onPressed: _navigateToAddTransaction,
         child: const Icon(Icons.add),
       ),
     );
