@@ -1,44 +1,26 @@
 {
   "project_info": {
-    "project_number": "523280675997",
-    "project_id": "tajiriaiapp",
-    "storage_bucket": "tajiriaiapp.firebasestorage.app"
+    "project_number": "143364800780",
+    "project_id": "tajiri-ai-dev",
+    "storage_bucket": "tajiri-ai-dev.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:523280675997:android:2de4a8a00b678ad6851074",
+        "mobilesdk_app_id": "1:143364800780:android:ad967a3440acc380000929",
         "android_client_info": {
           "package_name": "com.glyptis.tajiri_ai"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "523280675997-2gsj2vra0i7jd972294fk9pg6rrv2fb1.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.glyptis.tajiri_ai",
-            "certificate_hash": "700fe9465e1e0baa45d8839771de36fd54d64f8f"
-          }
-        },
-        {
-          "client_id": "523280675997-9v3pv5713ok8dreca7tkvmehoo3v1bn5.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBUKhd6oQ6qLlb1FyP04-E1xZFrygFBh5I"
+          "current_key": "AIzaSyDOiO23VrQfo4PgS4l6XJc4kEBsIO2H68k"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "523280675997-9v3pv5713ok8dreca7tkvmehoo3v1bn5.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

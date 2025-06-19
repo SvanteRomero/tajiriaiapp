@@ -1,0 +1,18 @@
+// File: functions/tsconfig.json
+// This file tells the TypeScript compiler how to convert your .ts files to .js files.
+
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "outDir": "lib",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2017"
+  },
+  "compileOnSave": true,
+  "include": [
+    "src"
+  ]
+}
