@@ -8,3 +8,6 @@ typings/
 # Node.js dependency directory
 node_modules/
 *.local
+
+#API KEY
+.env.tajiri-ai-dev
