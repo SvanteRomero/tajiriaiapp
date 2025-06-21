@@ -4,6 +4,7 @@ enum TransactionType { income, expense }
 
 class TransactionModel {
   final String? id;
+  final String accountId; // Add this line
   final String description;
   final double amount;
   final DateTime date;
@@ -12,6 +13,7 @@ class TransactionModel {
 
   TransactionModel({
     this.id,
+    required this.accountId, // Add this line
     required this.description,
     required this.amount,
     required this.date,
@@ -23,6 +25,7 @@ class TransactionModel {
     Map data = doc.data() as Map<String, dynamic>;
     return TransactionModel(
       id: doc.id,
+      accountId: data['accountId'] ?? '', // Add this line
       description: data['description'] ?? '',
       amount: (data['amount'] as num).toDouble(),
       date: (data['date'] as Timestamp).toDate(),
@@ -33,6 +36,7 @@ class TransactionModel {
 
   Map<String, dynamic> toJson() {
     return {
+      'accountId': accountId, // Add this line
       'description': description,
       'amount': amount,
       'date': Timestamp.fromDate(date),

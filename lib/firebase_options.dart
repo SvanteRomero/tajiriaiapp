@@ -41,48 +41,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyD7-wFvrOo2csO9N4EbFdeFe6xezJufVZ0',
-    appId: '1:143364800780:web:fc499e67fa6ffcdc000929',
-    messagingSenderId: '143364800780',
-    projectId: 'tajiri-ai-dev',
-    authDomain: 'tajiri-ai-dev.firebaseapp.com',
-    storageBucket: 'tajiri-ai-dev.firebasestorage.app',
-    measurementId: 'G-J8R0H36MNK',
+    apiKey: 'AIzaSyDVw8C3LhZ4_SwZVbV2hcOB4rOe2kYaVG4',
+    appId: '1:670998225121:web:89e1da57ee3c6322b057a0',
+    messagingSenderId: '670998225121',
+    projectId: 'tajiri-ai-v1',
+    authDomain: 'tajiri-ai-v1.firebaseapp.com',
+    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDOiO23VrQfo4PgS4l6XJc4kEBsIO2H68k',
-    appId: '1:143364800780:android:ad967a3440acc380000929',
+    appId: '1:143364800780:android:4d46d8e8d7f5ea9d000929',
     messagingSenderId: '143364800780',
     projectId: 'tajiri-ai-dev',
     storageBucket: 'tajiri-ai-dev.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDmWuRTeB6L-BF3HVTI4f0Lq_-7B34Bs7g',
-    appId: '1:143364800780:ios:d93a47b1b2abb73e000929',
-    messagingSenderId: '143364800780',
-    projectId: 'tajiri-ai-dev',
-    storageBucket: 'tajiri-ai-dev.firebasestorage.app',
+    apiKey: 'AIzaSyBbWfgwv6anTbrMuwovnx_N_4wTfdNlPA8',
+    appId: '1:670998225121:ios:8a46b582d17614c9b057a0',
+    messagingSenderId: '670998225121',
+    projectId: 'tajiri-ai-v1',
+    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
     iosBundleId: 'com.example.tajiriAi',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDmWuRTeB6L-BF3HVTI4f0Lq_-7B34Bs7g',
-    appId: '1:143364800780:ios:d93a47b1b2abb73e000929',
-    messagingSenderId: '143364800780',
-    projectId: 'tajiri-ai-dev',
-    storageBucket: 'tajiri-ai-dev.firebasestorage.app',
+    apiKey: 'AIzaSyBbWfgwv6anTbrMuwovnx_N_4wTfdNlPA8',
+    appId: '1:670998225121:ios:8a46b582d17614c9b057a0',
+    messagingSenderId: '670998225121',
+    projectId: 'tajiri-ai-v1',
+    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
     iosBundleId: 'com.example.tajiriAi',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyD7-wFvrOo2csO9N4EbFdeFe6xezJufVZ0',
-    appId: '1:143364800780:web:de46876de5b56753000929',
-    messagingSenderId: '143364800780',
-    projectId: 'tajiri-ai-dev',
-    authDomain: 'tajiri-ai-dev.firebaseapp.com',
-    storageBucket: 'tajiri-ai-dev.firebasestorage.app',
-    measurementId: 'G-5BD3ZVCNE5',
+    apiKey: 'AIzaSyDVw8C3LhZ4_SwZVbV2hcOB4rOe2kYaVG4',
+    appId: '1:670998225121:web:aa88db885603fd11b057a0',
+    messagingSenderId: '670998225121',
+    projectId: 'tajiri-ai-v1',
+    authDomain: 'tajiri-ai-v1.firebaseapp.com',
+    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
   );
 }

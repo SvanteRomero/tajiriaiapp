@@ -1,13 +1,12 @@
-// lib/screens/add_transaction_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-//import 'package:google_fonts/google_fonts.dart';
+//import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:tajiri_ai/core/models/account_model.dart';
 import '../core/models/transaction_model.dart';
 import 'package:logging/logging.dart';
 import '../core/utils/snackbar_utils.dart';
-
+import '../core/services/firestore_service.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final User user;
@@ -23,9 +22,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   final _amountController = TextEditingController();
   TransactionType _selectedType = TransactionType.expense;
   DateTime _selectedDate = DateTime.now();
+  String? _selectedAccountId;
   String _selectedCategory = 'Other';
   bool _isLoading = false;
   final Logger _logger = Logger('AddTransactionPage');
+  final FirestoreService _firestoreService = FirestoreService();
 
   final List<String> _expenseCategories = ['Groceries', 'Shopping', 'Rent', 'Transport', 'Subscriptions', 'Dining Out', 'Other'];
   final List<String> _incomeCategories = ['Salary', 'Freelance', 'Investment', 'Other'];
@@ -46,9 +47,14 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
   Future<void> _saveTransaction() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedAccountId == null) {
+        showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
+        return;
+      }
       setState(() => _isLoading = true);
 
       final transaction = TransactionModel(
+        accountId: _selectedAccountId!,
         description: _descriptionController.text,
         amount: double.parse(_amountController.text),
         date: _selectedDate,
@@ -57,7 +63,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       );
 
       try {
-        await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).collection('transactions').add(transaction.toJson());
+        await _firestoreService.addTransaction(widget.user.uid, transaction);
         if (mounted) {
           showCustomSnackbar(context, 'Transaction saved successfully!');
           Navigator.of(context).pop();
@@ -93,6 +99,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             children: [
               _buildTypeSelector(),
               const SizedBox(height: 20),
+              _buildAccountSelector(),
+              const SizedBox(height: 16),
               TextFormField(controller: _descriptionController, decoration: const InputDecoration(labelText: "Description"), validator: (value) => value!.isEmpty ? 'Please enter a description' : null),
               const SizedBox(height: 16),
               TextFormField(
@@ -121,6 +129,38 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           ),
         ),
       ),
+    );
+  }
+  
+  Widget _buildAccountSelector() {
+    return StreamBuilder<List<Account>>(
+      stream: _firestoreService.getAccounts(widget.user.uid),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        var accounts = snapshot.data!;
+        if (accounts.isEmpty) {
+          return const Text("Please create an account first on your profile page.");
+        }
+        return DropdownButtonFormField<String>(
+          value: _selectedAccountId,
+          hint: const Text("Select Account"),
+          decoration: const InputDecoration(labelText: "Account"),
+          items: accounts.map((Account account) {
+            return DropdownMenuItem<String>(
+              value: account.id,
+              child: Text(account.name),
+            );
+          }).toList(),
+          onChanged: (String? newValue) {
+            setState(() {
+              _selectedAccountId = newValue;
+            });
+          },
+          validator: (value) => value == null ? 'Please select an account' : null,
+        );
+      },
     );
   }
 

@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:rxdart/rxdart.dart';
+import 'package:tajiri_ai/core/models/account_model.dart';
 import '../core/models/transaction_model.dart';
+import '../core/services/firestore_service.dart';
 
 class DashboardPage extends StatefulWidget {
   final User user;
@@ -14,15 +17,16 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final FirestoreService _firestoreService = FirestoreService();
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .collection('transactions')
-          .orderBy('date', descending: true)
-          .snapshots(),
+    return StreamBuilder(
+      stream: CombineLatestStream.combine2(
+        _firestoreService.getTransactions(widget.user.uid),
+        _firestoreService.getAccounts(widget.user.uid),
+        (List<TransactionModel> transactions, List<Account> accounts) => {'transactions': transactions, 'accounts': accounts},
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -30,7 +34,14 @@ class _DashboardPageState extends State<DashboardPage> {
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData) {
+          return const Center(child: Text("No data available."));
+        }
+
+        final transactions = snapshot.data!['transactions'] as List<TransactionModel>;
+        final accounts = snapshot.data!['accounts'] as List<Account>;
+        
+        if (transactions.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -45,14 +56,13 @@ class _DashboardPageState extends State<DashboardPage> {
           );
         }
 
-        final transactions = snapshot.data!.docs.map((doc) => TransactionModel.fromFirestore(doc)).toList();
+        double totalBalance = accounts.fold(0.0, (sum, item) => sum + item.balance);
         double totalIncome = transactions.where((t) => t.type == TransactionType.income).fold(0, (sum, item) => sum + item.amount);
         double totalExpense = transactions.where((t) => t.type == TransactionType.expense).fold(0, (sum, item) => sum + item.amount);
-        double balance = totalIncome - totalExpense;
 
         return Column(
           children: [
-            _buildBalanceCard(balance, totalIncome, totalExpense),
+            _buildBalanceCard(totalBalance, totalIncome, totalExpense),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: Align(
@@ -94,7 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Current Balance", style: GoogleFonts.poppins(color: Colors.white70)),
+          Text("Total Balance", style: GoogleFonts.poppins(color: Colors.white70)),
           Text(
             NumberFormat.currency(symbol: '\$').format(balance),
             style: GoogleFonts.poppins(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),

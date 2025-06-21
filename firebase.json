@@ -4,7 +4,7 @@
       "android": {
         "default": {
           "projectId": "tajiri-ai-dev",
-          "appId": "1:143364800780:android:ad967a3440acc380000929",
+          "appId": "1:143364800780:android:4d46d8e8d7f5ea9d000929",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -12,11 +12,7 @@
         "lib/firebase_options.dart": {
           "projectId": "tajiri-ai-dev",
           "configurations": {
-            "android": "1:143364800780:android:ad967a3440acc380000929",
-            "ios": "1:143364800780:ios:d93a47b1b2abb73e000929",
-            "macos": "1:143364800780:ios:d93a47b1b2abb73e000929",
-            "web": "1:143364800780:web:fc499e67fa6ffcdc000929",
-            "windows": "1:143364800780:web:de46876de5b56753000929"
+            "android": "1:143364800780:android:4d46d8e8d7f5ea9d000929"
           }
         }
       }
