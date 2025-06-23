@@ -17,17 +17,29 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      return web;
+      throw UnsupportedError(
+        'DefaultFirebaseOptions have not been configured for web - '
+        'you can reconfigure this by running the FlutterFire CLI again.',
+      );
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        return ios;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for ios - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.macOS:
-        return macos;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for macos - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.windows:
-        return windows;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for windows - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -40,47 +52,11 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDVw8C3LhZ4_SwZVbV2hcOB4rOe2kYaVG4',
-    appId: '1:670998225121:web:89e1da57ee3c6322b057a0',
-    messagingSenderId: '670998225121',
-    projectId: 'tajiri-ai-v1',
-    authDomain: 'tajiri-ai-v1.firebaseapp.com',
-    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
-  );
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDOiO23VrQfo4PgS4l6XJc4kEBsIO2H68k',
     appId: '1:143364800780:android:4d46d8e8d7f5ea9d000929',
     messagingSenderId: '143364800780',
     projectId: 'tajiri-ai-dev',
     storageBucket: 'tajiri-ai-dev.firebasestorage.app',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBbWfgwv6anTbrMuwovnx_N_4wTfdNlPA8',
-    appId: '1:670998225121:ios:8a46b582d17614c9b057a0',
-    messagingSenderId: '670998225121',
-    projectId: 'tajiri-ai-v1',
-    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
-    iosBundleId: 'com.example.tajiriAi',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBbWfgwv6anTbrMuwovnx_N_4wTfdNlPA8',
-    appId: '1:670998225121:ios:8a46b582d17614c9b057a0',
-    messagingSenderId: '670998225121',
-    projectId: 'tajiri-ai-v1',
-    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
-    iosBundleId: 'com.example.tajiriAi',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDVw8C3LhZ4_SwZVbV2hcOB4rOe2kYaVG4',
-    appId: '1:670998225121:web:aa88db885603fd11b057a0',
-    messagingSenderId: '670998225121',
-    projectId: 'tajiri-ai-v1',
-    authDomain: 'tajiri-ai-v1.firebaseapp.com',
-    storageBucket: 'tajiri-ai-v1.firebasestorage.app',
   );
 }
