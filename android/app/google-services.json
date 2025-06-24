@@ -12,7 +12,20 @@
           "package_name": "com.glyptis.tajiri_ai"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "143364800780-aqhaspommtgkeev41jtrt6vv9ma4rvap.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.glyptis.tajiri_ai",
+            "certificate_hash": "412bdac446fa71bcb0e9e396d19a64d5ae0abc09"
+          }
+        },
+        {
+          "client_id": "143364800780-le2g5rg44l8r2rdp9gb5kdro6etvu5ef.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDOiO23VrQfo4PgS4l6XJc4kEBsIO2H68k"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "143364800780-le2g5rg44l8r2rdp9gb5kdro6etvu5ef.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

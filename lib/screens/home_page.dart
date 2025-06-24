@@ -57,8 +57,8 @@ class _HomePageState extends State<HomePage> {
           );
         },
         backgroundColor: Colors.deepPurple,
-        child: const Icon(Icons.add, color: Colors.white),
         elevation: 4.0,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
