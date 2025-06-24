@@ -5,6 +5,7 @@ import 'analytics.dart';
 import 'dashboard_page.dart';
 import 'profile_page.dart';
 import 'add_transaction_page.dart';
+import 'my_goals_page.dart'; // Import the MyGoalsPage
 
 class HomePage extends StatefulWidget {
   final User user;
@@ -16,7 +17,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  static const List<String> _pageTitles = ["Dashboard", "Analytics", "AI Advisor"];
+  static const List<String> _pageTitles = ["Dashboard", "Analytics", "My Goals", "AI Advisor"];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -29,12 +30,17 @@ class _HomePageState extends State<HomePage> {
     final List<Widget> pages = [
       DashboardPage(user: widget.user),
       AnalyticsPage(user: widget.user),
-      AdvisoryPage(user: widget.user),
+      MyGoalsPage(user: widget.user), // MyGoalsPage is now at index 2
+      AdvisoryPage(user: widget.user), // AdvisoryPage is now at index 3
     ];
+
+    // Determine if the FloatingActionButton should be visible
+    final bool showAddTransactionButton = _selectedIndex != 3; // Hide on Advisory page (index 3)
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_pageTitles[_selectedIndex]),
+        // Add null-aware operator to handle potential null string (defensive programming)
+        title: Text(_pageTitles[_selectedIndex] ?? ''),
         actions: [
           IconButton(
             icon: const Icon(Icons.account_circle_outlined),
@@ -50,29 +56,47 @@ class _HomePageState extends State<HomePage> {
         index: _selectedIndex,
         children: pages,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AddTransactionPage(user: widget.user)),
-          );
-        },
-        backgroundColor: Colors.deepPurple,
-        elevation: 4.0,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: showAddTransactionButton
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AddTransactionPage(user: widget.user)),
+                );
+              },
+              backgroundColor: Colors.deepPurple,
+              elevation: 4.0,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8.0,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Use spaceBetween for even distribution
           children: <Widget>[
-            _buildNavItem(Icons.dashboard_rounded, "Dashboard", 0),
-            _buildNavItem(Icons.pie_chart_rounded, "Analytics", 1),
-            const SizedBox(width: 48), // The space for the FAB
-            _buildNavItem(Icons.model_training_rounded, "AI Advisor", 2),
-            // The profile button is in the AppBar now, so this space is for balance.
-            const SizedBox(width: 48),
+            // Left half of the bottom navigation bar
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.dashboard_rounded, "Dashboard", 0),
+                  _buildNavItem(Icons.pie_chart_rounded, "Analytics", 1),
+                ],
+              ),
+            ),
+            // Spacer for the FloatingActionButton
+            const SizedBox(width: 48), // Ensure this matches the FAB's size
+            // Right half of the bottom navigation bar
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.flag_rounded, "Goals", 2), // Goals nav item at index 2
+                  _buildNavItem(Icons.model_training_rounded, "AI Advisor", 3), // AI Advisor nav item at index 3
+                ],
+              ),
+            ),
           ],
         ),
       ),

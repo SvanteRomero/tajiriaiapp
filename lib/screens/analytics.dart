@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:tajiri_ai/core/services/firestore_service.dart'; // Import FirestoreService
+import 'package:tajiri_ai/core/models/transaction_model.dart'; // Import TransactionModel
 
 class CategorySpending {
   final String category;
@@ -23,6 +25,21 @@ class AnalyticsPage extends StatefulWidget {
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
   late Future<Map<String, dynamic>> _analyticsData;
+  final FirestoreService _firestoreService = FirestoreService(); // Instantiate FirestoreService
+
+  // Define a map for category colors and icons
+  static const Map<String, Map<String, dynamic>> _categoryVisuals = {
+    'Groceries': {'color': Colors.orange, 'icon': Icons.local_grocery_store},
+    'Shopping': {'color': Colors.purple, 'icon': Icons.shopping_bag},
+    'Rent': {'color': Colors.red, 'icon': Icons.real_estate_agent},
+    'Transport': {'color': Colors.blue, 'icon': Icons.directions_car},
+    'Subscriptions': {'color': Colors.teal, 'icon': Icons.subscriptions},
+    'Dining Out': {'color': Colors.pink, 'icon': Icons.restaurant},
+    'Other': {'color': Colors.grey, 'icon': Icons.category}, // Default for 'Other' or unmapped
+    'Salary': {'color': Colors.green, 'icon': Icons.attach_money},
+    'Freelance': {'color': Colors.lightGreen, 'icon': Icons.work},
+    'Investment': {'color': Colors.blueAccent, 'icon': Icons.trending_up},
+  };
 
   @override
   void initState() {
@@ -30,18 +47,51 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     _analyticsData = _fetchAnalyticsData();
   }
 
+  // Modified to fetch real data
   Future<Map<String, dynamic>> _fetchAnalyticsData() async {
-    await Future.delayed(const Duration(seconds: 1));
+    // Get current month's start and end dates
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59); // Last day of the current month
+
+    // Fetch all transactions and then filter in-app
+    final allTransactions = await _firestoreService.getTransactions(widget.user.uid).first;
+
+    // Filter for expenses within the current month
+    final currentMonthExpenses = allTransactions.where((t) {
+      return t.type == TransactionType.expense &&
+             t.date.isAfter(startOfMonth.subtract(const Duration(milliseconds: 1))) &&
+             t.date.isBefore(endOfMonth.add(const Duration(milliseconds: 1)));
+    }).toList();
+
+    double totalSpending = 0.0;
+    final Map<String, double> spendingMap = {};
+
+    for (var transaction in currentMonthExpenses) {
+      totalSpending += transaction.amount;
+      spendingMap.update(transaction.category, (value) => value + transaction.amount,
+          ifAbsent: () => transaction.amount);
+    }
+
+    // Convert spending map to List<CategorySpending>
+    final List<CategorySpending> spendingByCategory = spendingMap.entries.map((entry) {
+      final categoryName = entry.key;
+      final amount = entry.value;
+      final visuals = _categoryVisuals[categoryName] ?? _categoryVisuals['Other']!; // Use 'Other' if not mapped
+      return CategorySpending(
+        categoryName,
+        amount,
+        visuals['color'] as Color,
+        visuals['icon'] as IconData,
+      );
+    }).toList();
+
+    // Sort by amount descending
+    spendingByCategory.sort((a, b) => b.amount.compareTo(a.amount));
+
     return {
-      "totalSpending": 2845.60,
-      "spendingByCategory": [
-        CategorySpending("Groceries", 620.50, Colors.orange, Icons.local_grocery_store),
-        CategorySpending("Shopping", 430.00, Colors.purple, Icons.shopping_bag),
-        CategorySpending("Rent", 1200.00, Colors.red, Icons.real_estate_agent),
-        CategorySpending("Transport", 185.25, Colors.blue, Icons.directions_car),
-        CategorySpending("Subscriptions", 89.85, Colors.teal, Icons.subscriptions),
-        CategorySpending("Dining Out", 320.00, Colors.pink, Icons.restaurant),
-      ],
+      "totalSpending": totalSpending,
+      "spendingByCategory": spendingByCategory,
     };
   }
 
@@ -53,8 +103,22 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text("Could not load analytics."));
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
+        if (!snapshot.hasData || snapshot.data!['totalSpending'] == 0) { // Check if total spending is 0
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.bar_chart_rounded, size: 80, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                Text("No spending data for this month.", style: GoogleFonts.poppins(fontSize: 18, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                Text("Add transactions to see your analytics!", style: GoogleFonts.poppins(color: Colors.grey.shade500)),
+              ],
+            ),
+          );
         }
 
         final data = snapshot.data!;
@@ -68,9 +132,19 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             children: [
               _buildTotalSpendingCard(totalSpending),
               const SizedBox(height: 24),
-              _buildSpendingPieChartCard(spendingByCategory, totalSpending),
-              const SizedBox(height: 24),
-              _buildCategoryListCard(spendingByCategory, totalSpending),
+              // Only show pie chart if there's spending by category to display
+              if (spendingByCategory.isNotEmpty) ...[
+                _buildSpendingPieChartCard(spendingByCategory, totalSpending),
+                const SizedBox(height: 24),
+                _buildCategoryListCard(spendingByCategory, totalSpending),
+              ] else ...[
+                 const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Text("No categorized spending to display.", style: TextStyle(color: Colors.grey)),
+                  ),
+                 ),
+              ],
             ],
           ),
         );
@@ -96,7 +170,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ),
     );
   }
-  
+
   Widget _buildSpendingPieChartCard(List<CategorySpending> categories, double total) {
     return Card(
       elevation: 2,
@@ -151,7 +225,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Widget _buildCategoryListItem(CategorySpending category, double totalSpending) {
-    final percentage = (category.amount / totalSpending);
+    final percentage = totalSpending > 0 ? (category.amount / totalSpending) : 0.0; // Prevent division by zero
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(

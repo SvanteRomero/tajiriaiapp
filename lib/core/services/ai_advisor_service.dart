@@ -16,4 +16,18 @@ class AiAdvisorService {
       return 'An unexpected error occurred. Please check your connection.';
     }
   }
+
+  Future<String> suggestDailyLimit() async {
+    try {
+      final callable = _functions.httpsCallable('suggestDailyLimit');
+      final response = await callable.call<Map<String, dynamic>>({});
+      return response.data['reply'] as String;
+    } on FirebaseFunctionsException catch (e) {
+      print('Firebase Functions Error: ${e.code} - ${e.message}');
+      return 'Could not get a suggestion at this time.';
+    } catch (e) {
+      print('Generic Error: $e');
+      return 'An unexpected error occurred while getting suggestion.';
+    }
+  }
 }

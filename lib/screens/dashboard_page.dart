@@ -6,6 +6,8 @@ import 'package:rxdart/rxdart.dart';
 import 'package:tajiri_ai/core/models/account_model.dart';
 import '../core/models/transaction_model.dart';
 import '../core/services/firestore_service.dart';
+import '../core/utils/snackbar_utils.dart'; // Import snackbar_utils for user feedback
+import 'edit_transaction_page.dart'; // Import the new EditTransactionPage
 
 class DashboardPage extends StatefulWidget {
   final User user;
@@ -17,6 +19,45 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final FirestoreService _firestoreService = FirestoreService();
+
+  // Function to show delete confirmation and perform delete
+  Future<bool> _confirmAndDeleteTransaction(TransactionModel transaction) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Transaction?"),
+        content: Text("Are you sure you want to delete '${transaction.description}'? This will adjust your account balance."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _firestoreService.deleteTransaction(widget.user.uid, transaction);
+        if (mounted) {
+          showCustomSnackbar(context, 'Transaction deleted!');
+        }
+        return true; // Indicate that the item was successfully dismissed/deleted
+      } catch (e) {
+        if (mounted) {
+          showCustomSnackbar(context, 'Failed to delete transaction. Please try again.', type: SnackbarType.error);
+        }
+        return false; // Indicate that deletion failed
+      }
+    }
+    return false; // User cancelled dismissal
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +80,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
         final transactions = snapshot.data!['transactions'] as List<TransactionModel>;
         final accounts = snapshot.data!['accounts'] as List<Account>;
-        
+
         if (transactions.isEmpty) {
           return Center(
             child: Column(
@@ -74,7 +115,23 @@ class _DashboardPageState extends State<DashboardPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 itemCount: transactions.length,
                 itemBuilder: (context, index) {
-                  return _buildTransactionTile(transactions[index]);
+                  final transaction = transactions[index];
+                  // Wrap with Dismissible for swipe-to-delete
+                  return Dismissible(
+                    key: ValueKey(transaction.id), // Unique key for Dismissible
+                    direction: DismissDirection.endToStart, // Swipe from right to left
+                    background: Container(
+                      color: Colors.red,
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    confirmDismiss: (direction) => _confirmAndDeleteTransaction(transaction), // Show confirmation dialog
+                    onDismissed: (direction) {
+                      // No need to show snackbar here as it's already shown in _confirmAndDeleteTransaction
+                    },
+                    child: _buildTransactionTile(transaction),
+                  );
                 },
               ),
             ),
@@ -163,6 +220,15 @@ class _DashboardPageState extends State<DashboardPage> {
             fontSize: 16,
           ),
         ),
+        // Make ListTile tappable for editing
+        onTap: () async {
+          final bool? result = await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => EditTransactionPage(user: widget.user, transaction: transaction),
+            ),
+          );
+          // No explicit refresh needed as StreamBuilder will handle it upon data changes
+        },
       ),
     );
   }
