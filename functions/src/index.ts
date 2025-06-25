@@ -134,7 +134,7 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
     const vertexAI = new VertexAI({project: projectId, location: location});
 
     const generativeModel = vertexAI.preview.getGenerativeModel({
-      model: "gemini-1.0-pro",
+      model: "gemini-2.5-flash",
     });
 
     const result = await generativeModel.generateContent(prompt);

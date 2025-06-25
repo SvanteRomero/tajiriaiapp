@@ -1,11 +1,12 @@
 // lib/screens/goal_details_page.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:tajiri_ai/core/models/goal_model.dart';
 import 'package:tajiri_ai/core/services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import CloudFirestore for Timestamp
+import 'package:tajiri_ai/screens/edit_goal_page.dart'; // Import EditGoalPage
 
 // Daily Log model for subcollection
 class DailyLog {
@@ -53,15 +54,54 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
     _currentGoal = widget.goal;
   }
 
+  // Method to refresh goal data after an edit on EditGoalPage
+  Future<void> _refreshGoal() async {
+    // Re-fetch the goal to ensure currentGoal is up-to-date
+    // This is important because the goal might have been updated or deleted
+    final updatedGoalDoc = await _firestoreService.getGoals(widget.user.uid)
+        .first // Get the first (and only) list of goals
+        .then((goals) => goals.firstWhere(
+            (g) => g.id == _currentGoal.id,
+            orElse: () => null as Goal // Return null if goal not found
+        ));
+
+
+    if (updatedGoalDoc != null && mounted) {
+      setState(() {
+        _currentGoal = updatedGoalDoc;
+      });
+    } else if (mounted) {
+      // If the goal no longer exists (e.g., it was deleted), pop back to MyGoalsPage
+      Navigator.of(context).pop(true); // Indicate that a change happened that requires MyGoalsPage to refresh
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    final progress = _currentGoal.savedAmount / _currentGoal.targetAmount;
+    final progress = _currentGoal.targetAmount > 0 ? _currentGoal.savedAmount / _currentGoal.targetAmount : 0.0;
     final progressPercentage = (progress * 100).toStringAsFixed(1);
     final remainingDays = _currentGoal.endDate.difference(DateTime.now()).inDays;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentGoal.goalName),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: "Edit Goal",
+            onPressed: () async {
+              final bool? result = await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EditGoalPage(user: widget.user, goal: _currentGoal),
+                ),
+              );
+              if (result == true) {
+                await _refreshGoal(); // Refresh data if changes were saved or goal was deleted
+              }
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -83,6 +123,8 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
 
   Widget _buildGoalSummaryCard(double progress, String progressPercentage, int remainingDays) {
     return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(0), // Removed margin to prevent double margin with parent padding
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -159,19 +201,18 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
 
   Widget _buildDailyLogList() {
     return StreamBuilder<List<DailyLog>>(
-      stream: _firestoreService.getDailyLogs(widget.user.uid, _currentGoal.id), // You'll need to add this method to FirestoreService
+      stream: _firestoreService.getDailyLogs(widget.user.uid, _currentGoal.id),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError) {
-          return Center(child: Text("Error: ${snapshot.error}"));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        final dailyLogs = snapshot.data!;
+        if (dailyLogs.isEmpty) {
           return const Center(child: Text("No daily logs available yet."));
         }
-
-        final dailyLogs = snapshot.data!;
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(), // To prevent nested scrolling

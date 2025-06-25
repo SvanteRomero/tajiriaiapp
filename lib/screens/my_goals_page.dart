@@ -101,7 +101,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
   }
 
   Widget _buildGoalCard(BuildContext context, Goal goal) {
-    final progress = goal.targetAmount > 0 ? goal.savedAmount / goal.targetAmount : 0.0; // Prevent division by zero
+    final progress = goal.targetAmount > 0 ? goal.savedAmount / goal.targetAmount : 0.0;
     final progressPercentage = (progress * 100).toStringAsFixed(1);
     final remainingDays = goal.endDate.difference(DateTime.now()).inDays;
 
