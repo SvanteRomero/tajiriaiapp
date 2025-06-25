@@ -8,7 +8,8 @@ import 'package:tajiri_ai/core/services/firestore_service.dart';
 import 'edit_profile_page.dart';
 import 'package:tajiri_ai/screens/auth/login_page.dart';
 import 'package:tajiri_ai/screens/add_goal_page.dart';
-import 'package:tajiri_ai/screens/edit_account_page.dart'; // Import the new EditAccountPage
+import 'package:tajiri_ai/screens/edit_account_page.dart';
+import 'package:tajiri_ai/screens/manage_categories_page.dart'; // NEW: Import ManageCategoriesPage
 
 class ProfilePage extends StatefulWidget {
   final User user;
@@ -115,6 +116,15 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // NEW: Method to navigate to ManageCategoriesPage
+  void _navigateToManageCategoriesPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ManageCategoriesPage(user: widget.user),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,6 +199,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   label: const Text("Add New Goal"),
                 ),
               ),
+              // NEW: Button to Manage Categories
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _navigateToManageCategoriesPage,
+                  icon: const Icon(Icons.category_outlined),
+                  label: const Text("Manage Categories"),
+                ),
+              ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -206,7 +226,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
+  
   Widget _buildAccountsList() {
     return StreamBuilder<List<Account>>(
       stream: _firestoreService.getAccounts(_currentUser.uid),
@@ -222,7 +242,7 @@ class _ProfilePageState extends State<ProfilePage> {
           return const Center(child: Text("No accounts found."));
         }
         return ListView.builder(
-          shrinkWrap: true,
+          shrinkWrap: true, // Important for nested lists
           itemCount: accounts.length,
           itemBuilder: (context, index) {
             final account = accounts[index];
@@ -233,14 +253,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   NumberFormat.currency(symbol: '\$').format(account.balance),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                // NEW: Make ListTile tappable for editing
                 onTap: () async {
                   final bool? result = await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => EditAccountPage(user: widget.user, account: account),
                     ),
                   );
-                  // Refresh UI if changes were made or account was deleted
                   if (result == true) {
                     setState(() { /* Rebuild to reflect changes from EditAccountPage */ });
                   }

@@ -1,6 +1,4 @@
 // lib/screens/edit_transaction_page.dart
-// ignore_for_file: use_super_parameters
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +7,7 @@ import 'package:tajiri_ai/core/models/transaction_model.dart';
 import 'package:logging/logging.dart';
 import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
 import 'package:tajiri_ai/core/services/firestore_service.dart';
+import 'package:tajiri_ai/core/models/user_category_model.dart'; // NEW: Import UserCategory
 
 class EditTransactionPage extends StatefulWidget {
   final User user;
@@ -27,13 +26,10 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   late TransactionType _selectedType;
   late DateTime _selectedDate;
   String? _selectedAccountId;
-  late String _selectedCategory;
+  String? _selectedCategory; // Make nullable initially for dynamic categories
   bool _isLoading = false;
   final Logger _logger = Logger('EditTransactionPage');
   final FirestoreService _firestoreService = FirestoreService();
-
-  final List<String> _expenseCategories = ['Groceries', 'Shopping', 'Rent', 'Transport', 'Subscriptions', 'Dining Out', 'Other'];
-  final List<String> _incomeCategories = ['Salary', 'Freelance', 'Investment', 'Other'];
 
   @override
   void initState() {
@@ -43,13 +39,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     _selectedType = widget.transaction.type;
     _selectedDate = widget.transaction.date;
     _selectedAccountId = widget.transaction.accountId;
-    _selectedCategory = widget.transaction.category;
-
-    // Ensure the initial category is valid for the initial type
-    List<String> currentCategories = _selectedType == TransactionType.expense ? _expenseCategories : _incomeCategories;
-    if (!currentCategories.contains(_selectedCategory)) {
-      _selectedCategory = 'Other';
-    }
+    _selectedCategory = widget.transaction.category; // Set initial category from transaction
   }
 
   @override
@@ -74,38 +64,44 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   }
 
   Future<void> _saveTransaction() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedAccountId == null) {
-        showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
-        return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedAccountId == null) {
+      showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
+      return;
+    }
+    if (_selectedCategory == null || _selectedCategory!.isEmpty) {
+       showCustomSnackbar(context, 'Please select a category.', type: SnackbarType.error);
+       return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final updatedTransaction = TransactionModel(
+      id: widget.transaction.id,
+      accountId: _selectedAccountId!,
+      description: _descriptionController.text,
+      amount: double.parse(_amountController.text),
+      date: _selectedDate,
+      type: _selectedType,
+      category: _selectedCategory!,
+    );
+
+    try {
+      await _firestoreService.updateTransaction(widget.user.uid, widget.transaction, updatedTransaction);
+      if (mounted) {
+        showCustomSnackbar(context, 'Transaction updated successfully!');
+        Navigator.of(context).pop(true);
       }
-      setState(() => _isLoading = true);
-
-      final updatedTransaction = TransactionModel(
-        id: widget.transaction.id, // Keep the existing ID for update
-        accountId: _selectedAccountId!,
-        description: _descriptionController.text,
-        amount: double.parse(_amountController.text),
-        date: _selectedDate,
-        type: _selectedType,
-        category: _selectedCategory,
-      );
-
-      try {
-        await _firestoreService.updateTransaction(widget.user.uid, widget.transaction, updatedTransaction);
-        if (mounted) {
-          showCustomSnackbar(context, 'Transaction updated successfully!');
-          Navigator.of(context).pop(true); // Pop with true to indicate success
-        }
-      } catch (e, s) {
-        _logger.severe('Failed to update transaction', e, s);
-        if (mounted) {
-          showCustomSnackbar(context, 'Failed to update transaction. Please try again.', type: SnackbarType.error);
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+    } catch (e, s) {
+      _logger.severe('Failed to update transaction', e, s);
+      if (mounted) {
+        showCustomSnackbar(context, 'Failed to update transaction. Please try again.', type: SnackbarType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -136,7 +132,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         await _firestoreService.deleteTransaction(widget.user.uid, widget.transaction);
         if (mounted) {
           showCustomSnackbar(context, 'Transaction deleted successfully!');
-          Navigator.of(context).pop(true); // Pop with true to indicate success
+          Navigator.of(context).pop(true);
         }
       } catch (e) {
         if (mounted) {
@@ -152,12 +148,6 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<String> currentCategories = _selectedType == TransactionType.expense ? _expenseCategories : _incomeCategories;
-    // Ensure the selected category is valid for the current type, reset to 'Other' if not
-    if (!currentCategories.contains(_selectedCategory)) {
-      _selectedCategory = 'Other';
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Edit Transaction"),
@@ -176,7 +166,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTypeSelector(currentCategories), // Pass currentCategories to update category dropdown
+              _buildTypeSelector(),
               const SizedBox(height: 20),
               _buildAccountSelector(),
               const SizedBox(height: 16),
@@ -193,7 +183,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildCategorySelector(currentCategories),
+              _buildCategorySelector(), // Updated to be dynamic
               const SizedBox(height: 16),
               _buildDateSelector(),
               const SizedBox(height: 30),
@@ -222,9 +212,8 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         if (accounts.isEmpty) {
           return const Text("Please create an account first on your profile page.");
         }
-        // Ensure _selectedAccountId is still valid among current accounts
         if (_selectedAccountId != null && !accounts.any((acc) => acc.id == _selectedAccountId)) {
-          _selectedAccountId = null; // Reset if the previously selected account was deleted
+          _selectedAccountId = null;
         }
         return DropdownButtonFormField<String>(
           value: _selectedAccountId,
@@ -247,7 +236,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     );
   }
 
-  Widget _buildTypeSelector(List<String> currentCategories) { // Accept currentCategories
+  Widget _buildTypeSelector() {
     return SegmentedButton<TransactionType>(
       style: SegmentedButton.styleFrom(
         selectedBackgroundColor: Colors.deepPurple.withOpacity(0.2),
@@ -261,22 +250,37 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       onSelectionChanged: (Set<TransactionType> newSelection) {
         setState(() {
           _selectedType = newSelection.first;
-          // Reset category if it's not applicable to the new type
-          List<String> updatedCategories = _selectedType == TransactionType.expense ? _expenseCategories : _incomeCategories;
-          if (!updatedCategories.contains(_selectedCategory)) {
-            _selectedCategory = 'Other';
-          }
+          _selectedCategory = 'Other'; // Reset category to 'Other' when type changes
         });
       },
     );
   }
 
-  Widget _buildCategorySelector(List<String> categories) {
-    return DropdownButtonFormField<String>(
-      value: _selectedCategory,
-      decoration: const InputDecoration(labelText: "Category"),
-      items: categories.map((String category) => DropdownMenuItem<String>(value: category, child: Text(category))).toList(),
-      onChanged: (String? newValue) { setState(() { _selectedCategory = newValue!; }); },
+  // Updated to dynamically fetch user categories
+  Widget _buildCategorySelector() {
+    return StreamBuilder<List<UserCategory>>(
+      stream: _firestoreService.getUserCategories(widget.user.uid, type: _selectedType),
+      builder: (context, snapshot) {
+        List<String> categories = ['Other']; // Always include 'Other' as a fallback
+
+        if (snapshot.hasData) {
+          categories.addAll(snapshot.data!.map((e) => e.name).toList());
+        }
+
+        if (_selectedCategory != null && !categories.contains(_selectedCategory!)) {
+          _selectedCategory = 'Other';
+        } else if (_selectedCategory == null && categories.isNotEmpty) {
+          _selectedCategory = categories.first;
+        }
+
+        return DropdownButtonFormField<String>(
+          value: _selectedCategory,
+          decoration: const InputDecoration(labelText: "Category"),
+          items: categories.map((String category) => DropdownMenuItem<String>(value: category, child: Text(category))).toList(),
+          onChanged: (String? newValue) { setState(() { _selectedCategory = newValue!; }); },
+          validator: (value) => value == null || value.isEmpty ? 'Please select a category' : null,
+        );
+      },
     );
   }
 

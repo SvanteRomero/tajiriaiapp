@@ -6,6 +6,7 @@ import '../core/models/transaction_model.dart';
 import 'package:logging/logging.dart';
 import '../core/utils/snackbar_utils.dart';
 import '../core/services/firestore_service.dart';
+import 'package:tajiri_ai/core/models/user_category_model.dart'; // NEW: Import UserCategory
 
 class AddTransactionPage extends StatefulWidget {
   final User user;
@@ -22,13 +23,16 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   TransactionType _selectedType = TransactionType.expense;
   DateTime _selectedDate = DateTime.now();
   String? _selectedAccountId;
-  String _selectedCategory = 'Other';
+  String? _selectedCategory; // Make nullable initially for dynamic categories
   bool _isLoading = false;
   final Logger _logger = Logger('AddTransactionPage');
   final FirestoreService _firestoreService = FirestoreService();
 
-  final List<String> _expenseCategories = ['Groceries', 'Shopping', 'Rent', 'Transport', 'Subscriptions', 'Dining Out', 'Other'];
-  final List<String> _incomeCategories = ['Salary', 'Freelance', 'Investment', 'Other'];
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = 'Other'; // Set a default category
+  }
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -45,48 +49,49 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   }
 
   Future<void> _saveTransaction() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedAccountId == null) {
-        showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
-        return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedAccountId == null) {
+      showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
+      return;
+    }
+    if (_selectedCategory == null || _selectedCategory!.isEmpty) {
+       showCustomSnackbar(context, 'Please select a category.', type: SnackbarType.error);
+       return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final transaction = TransactionModel(
+      accountId: _selectedAccountId!,
+      description: _descriptionController.text,
+      amount: double.parse(_amountController.text),
+      date: _selectedDate,
+      type: _selectedType,
+      category: _selectedCategory!, // Use selected category
+    );
+
+    try {
+      await _firestoreService.addTransaction(widget.user.uid, transaction);
+      if (mounted) {
+        showCustomSnackbar(context, 'Transaction saved successfully!');
+        Navigator.of(context).pop();
       }
-      setState(() => _isLoading = true);
-
-      final transaction = TransactionModel(
-        accountId: _selectedAccountId!,
-        description: _descriptionController.text,
-        amount: double.parse(_amountController.text),
-        date: _selectedDate,
-        type: _selectedType,
-        category: _selectedCategory,
-      );
-
-      try {
-        await _firestoreService.addTransaction(widget.user.uid, transaction);
-        if (mounted) {
-          showCustomSnackbar(context, 'Transaction saved successfully!');
-          Navigator.of(context).pop();
-        }
-      } catch (e, s) {
-        _logger.severe('Failed to save transaction', e, s);
-        if (mounted) {
-          showCustomSnackbar(context, 'Failed to save transaction. Please try again.', type: SnackbarType.error);
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+    } catch (e, s) {
+      _logger.severe('Failed to save transaction', e, s);
+      if (mounted) {
+        showCustomSnackbar(context, 'Failed to save transaction. Please try again.', type: SnackbarType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    List<String> currentCategories = _selectedType == TransactionType.expense ? _expenseCategories : _incomeCategories;
-    if (!currentCategories.contains(_selectedCategory)) {
-      _selectedCategory = 'Other';
-    }
-    
     return Scaffold(
       appBar: AppBar(title: const Text("New Transaction")),
       body: SingleChildScrollView(
@@ -113,7 +118,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildCategorySelector(currentCategories),
+              _buildCategorySelector(), // Updated to be dynamic
               const SizedBox(height: 16),
               _buildDateSelector(),
               const SizedBox(height: 30),
@@ -175,17 +180,41 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       ],
       selected: {_selectedType},
       onSelectionChanged: (Set<TransactionType> newSelection) {
-        setState(() { _selectedType = newSelection.first; });
+        setState(() {
+          _selectedType = newSelection.first;
+          _selectedCategory = 'Other'; // Reset selected category to 'Other' when type changes
+        });
       },
     );
   }
 
-  Widget _buildCategorySelector(List<String> categories) {
-    return DropdownButtonFormField<String>(
-      value: _selectedCategory,
-      decoration: const InputDecoration(labelText: "Category"),
-      items: categories.map((String category) => DropdownMenuItem<String>(value: category, child: Text(category))).toList(),
-      onChanged: (String? newValue) { setState(() { _selectedCategory = newValue!; }); },
+  // Updated to dynamically fetch user categories
+  Widget _buildCategorySelector() {
+    return StreamBuilder<List<UserCategory>>(
+      stream: _firestoreService.getUserCategories(widget.user.uid, type: _selectedType),
+      builder: (context, snapshot) {
+        List<String> categories = ['Other']; // Always include 'Other' as a fallback
+
+        if (snapshot.hasData) {
+          // Add user-defined categories to the list
+          categories.addAll(snapshot.data!.map((e) => e.name).toList());
+        }
+
+        // Ensure selected category is still valid for the current type, if not, reset to 'Other'
+        if (_selectedCategory != null && !categories.contains(_selectedCategory!)) { // Use !.
+          _selectedCategory = 'Other';
+        } else if (_selectedCategory == null && categories.isNotEmpty) {
+          _selectedCategory = categories.first;
+        }
+
+        return DropdownButtonFormField<String>(
+          value: _selectedCategory,
+          decoration: const InputDecoration(labelText: "Category"),
+          items: categories.map((String category) => DropdownMenuItem<String>(value: category, child: Text(category))).toList(),
+          onChanged: (String? newValue) { setState(() { _selectedCategory = newValue!; }); },
+          validator: (value) => value == null || value.isEmpty ? 'Please select a category' : null,
+        );
+      },
     );
   }
 

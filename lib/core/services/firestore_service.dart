@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tajiri_ai/core/models/account_model.dart';
 import 'package:tajiri_ai/core/models/transaction_model.dart';
-import 'package:tajiri_ai/core/models/goal_model.dart'; // Import Goal model
-import 'package:tajiri_ai/screens/goal_details_page.dart'; // Import DailyLog model
+import 'package:tajiri_ai/core/models/goal_model.dart';
+import 'package:tajiri_ai/core/models/user_category_model.dart'; // NEW: Import UserCategory
+import 'package:tajiri_ai/screens/goal_details_page.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -38,8 +39,6 @@ class FirestoreService {
   }
 
   // NEW: Method to delete an account
-  // IMPORTANT: Deleting an account does NOT automatically delete associated transactions/goals.
-  // For full data integrity, you would need a Cloud Function to handle cascading deletes.
   Future<void> deleteAccount(String userId, String accountId) {
     return _db
         .collection('users')
@@ -74,7 +73,7 @@ class FirestoreService {
       double newBalance = transaction.type == TransactionType.income
           ? currentBalance + transaction.amount
           : currentBalance - transaction.amount;
-
+      
       // Update the account balance
       firestoreTransaction.update(accountRef, {'balance': newBalance});
 
@@ -223,8 +222,6 @@ class FirestoreService {
   }
 
   // NEW: Method to delete a goal
-  // IMPORTANT: Deleting a goal does NOT automatically delete associated daily_logs.
-  // For full data integrity, you would need a Cloud Function to handle cascading deletes.
   Future<void> deleteGoal(String userId, String goalId) {
     return _db
         .collection('users')
@@ -246,5 +243,51 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => DailyLog.fromFirestore(doc.data())).toList());
+  }
+
+  // NEW: Category Management Methods
+
+  // Method to add a new user-defined category
+  Future<void> addUserCategory(String userId, UserCategory category) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('categories')
+        .add(category.toJson());
+  }
+
+  // Method to fetch user-defined categories
+  Stream<List<UserCategory>> getUserCategories(String userId, {TransactionType? type}) {
+    Query query = _db.collection('users').doc(userId).collection('categories');
+
+    if (type != null) {
+      query = query.where('type', isEqualTo: type.name);
+    }
+
+    return query.snapshots().map((snapshot) =>
+        snapshot.docs.map((doc) => UserCategory.fromFirestore(doc)).toList());
+  }
+
+  // Method to update an existing user-defined category
+  Future<void> updateUserCategory(String userId, UserCategory category) {
+    if (category.id == null) {
+      throw Exception("Category ID is required for updating.");
+    }
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('categories')
+        .doc(category.id)
+        .update(category.toJson());
+  }
+
+  // Method to delete a user-defined category
+  Future<void> deleteUserCategory(String userId, String categoryId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('categories')
+        .doc(categoryId)
+        .delete();
   }
 }
