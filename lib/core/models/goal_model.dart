@@ -1,23 +1,25 @@
 // lib/core/models/goal_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum GoalStatus { active, completed, cancelled, expired }
+// The 'cancelled' status has been removed.
+enum GoalStatus { active, completed, expired, abandoned }
 
 class Goal {
   final String id;
-  final String goalName; // Maps to goal_name
+  final String goalName;
   final double targetAmount;
-  final double savedAmount; // Maps to saved_amount
+  final double savedAmount;
   final DateTime startDate;
   final DateTime endDate;
   final double dailyLimit;
   final String timezone;
-  final GoalStatus status; // Maps to goal_status
-  final String goalVersion; // Maps to goal_version
-  final int streakCount; // Maps to streak_count
-  final int graceDaysUsed; // Maps to grace_days_used
+  final GoalStatus status;
+  final String goalVersion;
+  final int streakCount;
+  final int graceDaysUsed;
   final DateTime createdAt;
-  final DateTime? updatedAt; // Optional, can be null initially
+  final DateTime? updatedAt;
+  final DateTime? abandonedAt;
 
   Goal({
     required this.id,
@@ -28,12 +30,13 @@ class Goal {
     required this.endDate,
     required this.dailyLimit,
     required this.timezone,
-    this.status = GoalStatus.active, // Default to active
-    this.goalVersion = 'v1.0', // Default version
-    this.streakCount = 0, // Default to 0
-    this.graceDaysUsed = 0, // Default to 0
+    this.status = GoalStatus.active,
+    this.goalVersion = 'v1.0',
+    this.streakCount = 0,
+    this.graceDaysUsed = 0,
     required this.createdAt,
     this.updatedAt,
+    this.abandonedAt,
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -46,7 +49,7 @@ class Goal {
       startDate: (data['start_date'] as Timestamp).toDate(),
       endDate: (data['end_date'] as Timestamp).toDate(),
       dailyLimit: (data['daily_limit'] as num?)?.toDouble() ?? 0.0,
-      timezone: data['timezone'] ?? 'Africa/Dar_es_Salaam', // Default timezone
+      timezone: data['timezone'] ?? 'Africa/Dar_es_Salaam',
       status: (data['goal_status'] as String?) != null
           ? GoalStatus.values.firstWhere(
               (e) => e.toString().split('.').last == data['goal_status'],
@@ -57,6 +60,7 @@ class Goal {
       graceDaysUsed: (data['grace_days_used'] as num?)?.toInt() ?? 0,
       createdAt: (data['created_at'] as Timestamp).toDate(),
       updatedAt: (data['updated_at'] as Timestamp?)?.toDate(),
+      abandonedAt: (data['abandoned_at'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -75,6 +79,8 @@ class Goal {
       'grace_days_used': graceDaysUsed,
       'created_at': Timestamp.fromDate(createdAt),
       'updated_at': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'abandoned_at':
+          abandonedAt != null ? Timestamp.fromDate(abandonedAt!) : null,
     };
   }
 }

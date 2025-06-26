@@ -7,7 +7,9 @@ import 'package:rxdart/rxdart.dart';
 import 'package:tajiri_ai/core/models/budget_model.dart';
 import 'package:tajiri_ai/core/models/goal_model.dart';
 import 'package:tajiri_ai/core/models/transaction_model.dart';
+import 'package:tajiri_ai/core/models/user_category_model.dart';
 import 'package:tajiri_ai/core/services/firestore_service.dart';
+import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
 import 'package:tajiri_ai/screens/add_budget_page.dart';
 import 'package:tajiri_ai/screens/add_goal_page.dart';
 import 'package:tajiri_ai/screens/goal_details_page.dart';
@@ -23,6 +25,28 @@ class MyGoalsPage extends StatefulWidget {
 class _MyGoalsPageState extends State<MyGoalsPage> {
   final FirestoreService _firestoreService = FirestoreService();
 
+  Future<void> _reactivateGoal(Goal goal) async {
+    final reactivatedGoal = Goal(
+      id: goal.id,
+      goalName: goal.goalName,
+      targetAmount: goal.targetAmount,
+      savedAmount: goal.savedAmount,
+      startDate: goal.startDate,
+      endDate: goal.endDate,
+      dailyLimit: goal.dailyLimit,
+      timezone: goal.timezone,
+      status: GoalStatus.active,
+      goalVersion: goal.goalVersion,
+      streakCount: goal.streakCount,
+      graceDaysUsed: goal.graceDaysUsed,
+      createdAt: goal.createdAt,
+      updatedAt: DateTime.now(),
+      abandonedAt: null,
+    );
+    await _firestoreService.updateGoal(widget.user.uid, reactivatedGoal);
+    showCustomSnackbar(context, 'Goal reactivated!');
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<dynamic>>(
@@ -30,6 +54,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
         _firestoreService.getGoals(widget.user.uid),
         _firestoreService.getBudgets(widget.user.uid),
         _firestoreService.getTransactions(widget.user.uid),
+        _firestoreService.getUserCategories(widget.user.uid),
       ]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -45,6 +70,18 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
         final goals = snapshot.data![0] as List<Goal>;
         final budgets = snapshot.data![1] as List<Budget>;
         final transactions = snapshot.data![2] as List<TransactionModel>;
+        final categories = snapshot.data![3] as List<UserCategory>;
+
+        final activeGoals =
+            goals.where((goal) => goal.status == GoalStatus.active).toList();
+        final abandonedGoals =
+            goals.where((goal) => goal.status == GoalStatus.abandoned).toList();
+        final historicalGoals = goals
+            .where((goal) =>
+                goal.status != GoalStatus.active &&
+                goal.status != GoalStatus.abandoned)
+            .toList();
+        final hasActiveGoal = activeGoals.isNotEmpty;
 
         if (goals.isEmpty && budgets.isEmpty) {
           return Center(
@@ -100,24 +137,9 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
           );
         }
 
-        final activeGoals =
-            goals.where((goal) => goal.status == GoalStatus.active).toList();
-        final historicalGoals =
-            goals.where((goal) => goal.status != GoalStatus.active).toList();
-
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            if (budgets.isNotEmpty) ...[
-              Text("This Month's Budgets",
-                  style: GoogleFonts.poppins(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              ...budgets
-                  .map((budget) => _buildBudgetCard(context, budget, transactions))
-                  .toList(),
-              const SizedBox(height: 24),
-            ],
             if (activeGoals.isNotEmpty) ...[
               Text("Active Goal",
                   style: GoogleFonts.poppins(
@@ -126,17 +148,39 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
               ...activeGoals.map((goal) => _buildGoalCard(context, goal)).toList(),
               const SizedBox(height: 24),
             ],
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AddGoalPage(user: widget.user)));
-                },
-                icon: const Icon(Icons.add),
-                label: const Text("Add New Goal"),
+            if (budgets.isNotEmpty) ...[
+              Text("This Month's Budgets",
+                  style: GoogleFonts.poppins(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ...budgets
+                  .map((budget) =>
+                      _buildBudgetCard(context, budget, transactions, categories))
+                  .toList(),
+              const SizedBox(height: 24),
+            ],
+            if (abandonedGoals.isNotEmpty) ...[
+              Text("Abandoned Goals",
+                  style: GoogleFonts.poppins(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ...abandonedGoals
+                  .map((goal) => _buildAbandonedGoalCard(context, goal))
+                  .toList(),
+              const SizedBox(height: 24),
+            ],
+            if (!hasActiveGoal)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AddGoalPage(user: widget.user)));
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text("Add New Goal"),
+                ),
               ),
-            ),
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
@@ -165,8 +209,15 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
     );
   }
 
-  Widget _buildBudgetCard(
-      BuildContext context, Budget budget, List<TransactionModel> transactions) {
+  Widget _buildBudgetCard(BuildContext context, Budget budget,
+      List<TransactionModel> transactions, List<UserCategory> categories) {
+    final category = categories.firstWhere(
+      (cat) => cat.name == budget.category,
+      orElse: () =>
+          UserCategory(name: '', type: TransactionType.expense), // Fallback
+    );
+    final categoryColor = category.id != null ? category.color : Colors.deepPurple;
+
     final spent = transactions
         .where((t) =>
             t.category == budget.category &&
@@ -198,9 +249,9 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
               const SizedBox(height: 10),
               LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: categoryColor.withOpacity(0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(
-                    progress > 1 ? Colors.red : Colors.deepPurple),
+                    progress > 1 ? Colors.red : categoryColor),
                 minHeight: 10,
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -216,12 +267,46 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
                       style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color:
-                              progress > 1 ? Colors.red : Colors.deepPurple)),
+                          color: progress > 1 ? Colors.red : categoryColor)),
                 ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAbandonedGoalCard(BuildContext context, Goal goal) {
+    return Card(
+      color: Colors.grey.shade300,
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(goal.goalName,
+                style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700)),
+            const SizedBox(height: 8),
+            Text("This goal was abandoned. It will be deleted in 3 days.",
+                style: GoogleFonts.poppins(color: Colors.grey.shade600)),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _reactivateGoal(goal),
+                icon: const Icon(Icons.refresh),
+                label: const Text("Reactivate Goal"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              ),
+            )
+          ],
         ),
       ),
     );
@@ -239,14 +324,9 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () async {
-          final bool? result = await Navigator.of(context).push(
-              MaterialPageRoute(
-                  builder: (_) =>
-                      GoalDetailsPage(user: widget.user, goal: goal)));
-
-          if (result == true) {
-            setState(() {});
-          }
+          await Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => GoalDetailsPage(user: widget.user, goal: goal)));
+          setState(() {});
         },
         child: Padding(
           padding: const EdgeInsets.all(20.0),

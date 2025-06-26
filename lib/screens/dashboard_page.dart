@@ -1,4 +1,4 @@
-// ignore_for_file: unused_local_variable
+// lib/screens/dashboard_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,8 +7,8 @@ import 'package:rxdart/rxdart.dart';
 import 'package:tajiri_ai/core/models/account_model.dart';
 import '../core/models/transaction_model.dart';
 import '../core/services/firestore_service.dart';
-import '../core/utils/snackbar_utils.dart'; // Import snackbar_utils for user feedback
-import 'edit_transaction_page.dart'; // Import the new EditTransactionPage
+import '../core/utils/snackbar_utils.dart';
+import 'edit_transaction_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final User user;
@@ -21,13 +21,14 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final FirestoreService _firestoreService = FirestoreService();
 
-  // Function to show delete confirmation and perform delete
-  Future<bool> _confirmAndDeleteTransaction(TransactionModel transaction) async {
+  Future<bool> _confirmAndDeleteTransaction(
+      TransactionModel transaction) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Delete Transaction?"),
-        content: Text("Are you sure you want to delete '${transaction.description}'? This will adjust your account balance."),
+        content: Text(
+            "Are you sure you want to delete '${transaction.description}'? This will adjust your account balance."),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -48,17 +49,26 @@ class _DashboardPageState extends State<DashboardPage> {
         if (mounted) {
           showCustomSnackbar(context, 'Transaction deleted!');
         }
-        return true; // Indicate that the item was successfully dismissed/deleted
+        return true;
       } catch (e) {
         if (mounted) {
-          showCustomSnackbar(context, 'Failed to delete transaction. Please try again.', type: SnackbarType.error);
+          showCustomSnackbar(context, 'Failed to delete transaction. Please try again.',
+              type: SnackbarType.error);
         }
-        return false; // Indicate that deletion failed
+        return false;
       }
     }
-    return false; // User cancelled dismissal
+    return false;
   }
 
+  Future<void> _editTransaction(TransactionModel transaction) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            EditTransactionPage(user: widget.user, transaction: transaction),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +76,8 @@ class _DashboardPageState extends State<DashboardPage> {
       stream: CombineLatestStream.combine2(
         _firestoreService.getTransactions(widget.user.uid),
         _firestoreService.getAccounts(widget.user.uid),
-        (List<TransactionModel> transactions, List<Account> accounts) => {'transactions': transactions, 'accounts': accounts},
+        (List<TransactionModel> transactions, List<Account> accounts) =>
+            {'transactions': transactions, 'accounts': accounts},
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -79,7 +90,8 @@ class _DashboardPageState extends State<DashboardPage> {
           return const Center(child: Text("No data available."));
         }
 
-        final transactions = snapshot.data!['transactions'] as List<TransactionModel>;
+        final transactions =
+            snapshot.data!['transactions'] as List<TransactionModel>;
         final accounts = snapshot.data!['accounts'] as List<Account>;
 
         if (transactions.isEmpty) {
@@ -87,28 +99,40 @@ class _DashboardPageState extends State<DashboardPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.receipt_long, size: 80, color: Colors.grey.shade400),
+                Icon(Icons.receipt_long,
+                    size: 80, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                Text("No transactions yet", style: GoogleFonts.poppins(fontSize: 18, color: Colors.grey.shade600)),
+                Text("No transactions yet",
+                    style: GoogleFonts.poppins(
+                        fontSize: 18, color: Colors.grey.shade600)),
                 const SizedBox(height: 8),
-                Text("Tap the '+' button to add your first one!", style: GoogleFonts.poppins(color: Colors.grey.shade500)),
+                Text("Tap the '+' button to add your first one!",
+                    style: GoogleFonts.poppins(color: Colors.grey.shade500)),
               ],
             ),
           );
         }
 
-        double totalBalance = accounts.fold(0.0, (sum, item) => sum + item.balance);
-        double totalIncome = transactions.where((t) => t.type == TransactionType.income).fold(0, (sum, item) => sum + item.amount);
-        double totalExpense = transactions.where((t) => t.type == TransactionType.expense).fold(0, (sum, item) => sum + item.amount);
+        double totalBalance =
+            accounts.fold(0.0, (sum, item) => sum + item.balance);
+        double totalIncome = transactions
+            .where((t) => t.type == TransactionType.income)
+            .fold(0, (sum, item) => sum + item.amount);
+        double totalExpense = transactions
+            .where((t) => t.type == TransactionType.expense)
+            .fold(0, (sum, item) => sum + item.amount);
 
         return Column(
           children: [
             _buildBalanceCard(totalBalance, totalIncome, totalExpense),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text("Recent Transactions", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+                child: Text("Recent Transactions",
+                    style: GoogleFonts.poppins(
+                        fontSize: 18, fontWeight: FontWeight.w600)),
               ),
             ),
             Expanded(
@@ -117,19 +141,27 @@ class _DashboardPageState extends State<DashboardPage> {
                 itemCount: transactions.length,
                 itemBuilder: (context, index) {
                   final transaction = transactions[index];
-                  // Wrap with Dismissible for swipe-to-delete
                   return Dismissible(
-                    key: ValueKey(transaction.id), // Unique key for Dismissible
-                    direction: DismissDirection.endToStart, // Swipe from right to left
+                    key: ValueKey(transaction.id),
                     background: Container(
+                      color: Colors.blue,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: const Icon(Icons.edit, color: Colors.white),
+                    ),
+                    secondaryBackground: Container(
                       color: Colors.red,
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: const Icon(Icons.delete, color: Colors.white),
                     ),
-                    confirmDismiss: (direction) => _confirmAndDeleteTransaction(transaction), // Show confirmation dialog
-                    onDismissed: (direction) {
-                      // No need to show snackbar here as it's already shown in _confirmAndDeleteTransaction
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.startToEnd) {
+                        await _editTransaction(transaction);
+                        return false;
+                      } else {
+                        return await _confirmAndDeleteTransaction(transaction);
+                      }
                     },
                     child: _buildTransactionTile(transaction),
                   );
@@ -142,7 +174,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildBalanceCard(double balance, double income, double expense) {
+  Widget _buildBalanceCard(
+      double balance, double income, double expense) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),
@@ -155,23 +188,30 @@ class _DashboardPageState extends State<DashboardPage> {
           end: Alignment.bottomRight,
         ),
         boxShadow: [
-          BoxShadow(color: Colors.deepPurple.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(
+              color: Colors.deepPurple.withOpacity(0.4),
+              blurRadius: 15,
+              offset: const Offset(0, 5)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Total Balance", style: GoogleFonts.poppins(color: Colors.white70)),
+          Text("Total Balance",
+              style: GoogleFonts.poppins(color: Colors.white70)),
           Text(
             NumberFormat.currency(symbol: '\$').format(balance),
-            style: GoogleFonts.poppins(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+            style: GoogleFonts.poppins(
+                color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildIncomeExpenseRow(Icons.arrow_upward, "Income", income, Colors.greenAccent),
-              _buildIncomeExpenseRow(Icons.arrow_downward, "Expense", expense, Colors.redAccent),
+              _buildIncomeExpenseRow(
+                  Icons.arrow_upward, "Income", income, Colors.greenAccent),
+              _buildIncomeExpenseRow(
+                  Icons.arrow_downward, "Expense", expense, Colors.redAccent),
             ],
           )
         ],
@@ -179,7 +219,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildIncomeExpenseRow(IconData icon, String label, double amount, Color color) {
+  Widget _buildIncomeExpenseRow(
+      IconData icon, String label, double amount, Color color) {
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
@@ -187,10 +228,14 @@ class _DashboardPageState extends State<DashboardPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+            Text(label,
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
             Text(
               NumberFormat.currency(symbol: '\$').format(amount),
-              style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+              style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16),
             ),
           ],
         ),
@@ -209,9 +254,11 @@ class _DashboardPageState extends State<DashboardPage> {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withOpacity(0.1),
-          child: Icon(isExpense ? Icons.arrow_downward : Icons.arrow_upward, color: color),
+          child: Icon(isExpense ? Icons.arrow_downward : Icons.arrow_upward,
+              color: color),
         ),
-        title: Text(transaction.description, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        title: Text(transaction.description,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         subtitle: Text(DateFormat.yMMMd().format(transaction.date)),
         trailing: Text(
           "$sign ${NumberFormat.currency(symbol: '\$').format(transaction.amount)}",
@@ -221,15 +268,6 @@ class _DashboardPageState extends State<DashboardPage> {
             fontSize: 16,
           ),
         ),
-        // Make ListTile tappable for editing
-        onTap: () async {
-          final bool? result = await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => EditTransactionPage(user: widget.user, transaction: transaction),
-            ),
-          );
-          // No explicit refresh needed as StreamBuilder will handle it upon data changes
-        },
       ),
     );
   }

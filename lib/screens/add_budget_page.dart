@@ -1,11 +1,12 @@
 // lib/screens/add_budget_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:tajiri_ai/core/models/budget_model.dart';
+import 'package:tajiri_ai/core/models/transaction_model.dart';
 import 'package:tajiri_ai/core/models/user_category_model.dart';
 import 'package:tajiri_ai/core/services/firestore_service.dart';
 import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
+import 'package:tajiri_ai/screens/manage_categories_page.dart';
 
 class AddBudgetPage extends StatefulWidget {
   final User user;
@@ -31,6 +32,141 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
       _selectedCategory = widget.budget!.category;
       _amountController.text = widget.budget!.amount.toString();
     }
+  }
+
+  Future<void> _showCategoryPickerDialog() async {
+    final selectedCategory = await showDialog<UserCategory>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Category'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: StreamBuilder<List<UserCategory>>(
+              stream: _firestoreService.getUserCategories(widget.user.uid,
+                  type: TransactionType.expense),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final categories = snapshot.data!;
+                if (categories.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('No expense categories found.'),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(); // Close dialog
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) =>
+                                  ManageCategoriesPage(user: widget.user),
+                            ));
+                          },
+                          child: const Text('Add Category'),
+                        )
+                      ],
+                    ),
+                  );
+                }
+                return GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 8.0,
+                    mainAxisSpacing: 8.0,
+                  ),
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    final category = categories[index];
+                    return InkWell(
+                      onTap: () {
+                        Navigator.of(context).pop(category);
+                      },
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: category.color.withOpacity(0.2),
+                            child: Icon(
+                              category.icon,
+                              color: category.color,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: Text(
+                              category.name,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selectedCategory != null) {
+      setState(() {
+        _selectedCategory = selectedCategory.name;
+      });
+    }
+  }
+
+  Widget _buildCategorySelector() {
+    return FormField<String>(
+      validator: (value) {
+        if (_selectedCategory == null) {
+          return 'Please select a category';
+        }
+        return null;
+      },
+      builder: (FormFieldState<String> state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: _showCategoryPickerDialog,
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  errorText: state.hasError ? state.errorText : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(_selectedCategory ?? 'Select a category'),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -76,33 +212,7 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
           key: _formKey,
           child: Column(
             children: [
-              StreamBuilder<List<UserCategory>>(
-                  stream: _firestoreService.getUserCategories(widget.user.uid),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-                    final categories = snapshot.data!
-                        .map((category) => category.name)
-                        .toList();
-                    return DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      hint: const Text('Select Category'),
-                      items: categories
-                          .map((category) => DropdownMenuItem(
-                                value: category,
-                                child: Text(category),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value;
-                        });
-                      },
-                      validator: (value) =>
-                          value == null ? 'Please select a category' : null,
-                    );
-                  }),
+              _buildCategorySelector(),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _amountController,
@@ -135,7 +245,8 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
                           widget.user.uid, budget);
                       showCustomSnackbar(context, "Budget updated!");
                     } else {
-                      await _firestoreService.addBudget(widget.user.uid, budget);
+                      await _firestoreService.addBudget(
+                          widget.user.uid, budget);
                       showCustomSnackbar(context, "Budget added!");
                     }
                     Navigator.of(context).pop();

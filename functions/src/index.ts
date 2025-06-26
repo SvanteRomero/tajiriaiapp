@@ -335,3 +335,48 @@ export const suggestDailyLimit = onCall(async (request: CallableRequest) => {
 
   return {reply: aiResponse};
 });
+
+export const deleteAbandonedGoals = onSchedule(
+  {
+    schedule: "every 12 hours",
+    timeZone: "UTC",
+  },
+  async () => {
+    console.log("Running scheduled function to delete abandoned goals...");
+
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const cutoffTimestamp = admin.firestore.Timestamp.fromDate(threeDaysAgo);
+
+    const usersSnapshot = await db.collection("users").get();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+      const goalsRef = db
+        .collection("users")
+        .doc(userId)
+        .collection("goals");
+
+      const abandonedGoalsQuery = goalsRef
+        .where("goal_status", "==", "abandoned")
+        .where("abandoned_at", "<=", cutoffTimestamp);
+
+      const goalsToDeleteSnapshot = await abandonedGoalsQuery.get();
+
+      if (goalsToDeleteSnapshot.empty) {
+        continue;
+      }
+
+      const batch = db.batch();
+      goalsToDeleteSnapshot.forEach((doc) => {
+        console.log(`Scheduling deletion for goal ${doc.id} for user ${userId}.`);
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`Deleted ${goalsToDeleteSnapshot.size} abandoned goals for user ${userId}.`);
+    }
+
+    console.log("Finished deleting abandoned goals.");
+  }
+);
