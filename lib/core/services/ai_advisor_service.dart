@@ -30,4 +30,54 @@ class AiAdvisorService {
       return 'An unexpected error occurred while getting suggestion.';
     }
   }
+
+  Future<String> createTransaction(Map<String, dynamic> transactionData) async {
+    try {
+      final callable = _functions.httpsCallable('createTransaction');
+      final response = await callable.call<Map<String, dynamic>>(transactionData);
+      return response.data['message'] as String;
+    } on FirebaseFunctionsException catch (e) {
+      return e.message ?? 'Failed to create transaction.';
+    }
+  }
+
+  Future<String> getSpendingSummary(String timeFrame) async {
+    try {
+      final callable = _functions.httpsCallable('getSpendingSummary');
+      final response = await callable.call<Map<String, dynamic>>({'timeFrame': timeFrame});
+      return response.data['reply'] as String;
+    } on FirebaseFunctionsException catch (e) {
+      return e.message ?? 'Could not get summary.';
+    }
+  }
+
+  Future<String> createGoal(Map<String, dynamic> goalData) async {
+    try {
+      final callable = _functions.httpsCallable('createGoal');
+      final response = await callable.call<Map<String, dynamic>>(goalData);
+      return response.data['message'] as String;
+    } on FirebaseFunctionsException catch (e) {
+      return e.message ?? 'Failed to create goal.';
+    }
+  }
+
+  Future<String> createBudget(Map<String, dynamic> budgetData) async {
+    try {
+      final callable = _functions.httpsCallable('createBudget');
+      final response = await callable.call<Map<String, dynamic>>(budgetData);
+      return response.data['message'] as String;
+    } on FirebaseFunctionsException catch (e) {
+      return e.message ?? 'Failed to create budget.';
+    }
+  }
+
+  Future<String> deleteTransaction(String transactionId) async {
+    try {
+      final callable = _functions.httpsCallable('deleteTransaction');
+      await callable.call({'transactionId': transactionId});
+      return 'Transaction deleted successfully.';
+    } on FirebaseFunctionsException catch (e) {
+      return e.message ?? 'Failed to delete transaction.';
+    }
+  }
 }

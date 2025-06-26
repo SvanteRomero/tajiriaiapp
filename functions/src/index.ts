@@ -134,7 +134,7 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
     const vertexAI = new VertexAI({project: projectId, location: location});
 
     const generativeModel = vertexAI.preview.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
     });
 
     const result = await generativeModel.generateContent(prompt);
@@ -154,6 +154,217 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
     console.error("Error in getAdvisoryMessage:", error);
     throw new HttpsError("internal", "An error occurred while getting your advice.");
   }
+});
+
+export const createTransaction = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {description, amount, type, category, accountId} = request.data;
+
+  if (!description || !amount || !type || !category || !accountId) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing required fields: description, amount, type, category, accountId.",
+    );
+  }
+
+  const transaction = {
+    description,
+    amount: Number(amount),
+    type,
+    category,
+    accountId,
+    date: admin.firestore.Timestamp.now(),
+  };
+
+  await db.collection("users").doc(userId).collection("transactions").add(transaction);
+  return {success: true, message: "Transaction created successfully."};
+});
+
+export const getSpendingSummary = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {timeFrame} = request.data;
+
+  const {startDate, endDate, timeFrameText} = getDateRangeFromText(timeFrame || "this month");
+
+  const expenseQuery = db
+    .collection("users").doc(userId).collection("transactions")
+    .where("type", "==", "expense")
+    .where("date", ">=", startDate)
+    .where("date", "<=", endDate);
+
+  const expensesSnapshot = await expenseQuery.get();
+  const expenses = expensesSnapshot.docs.map((doc) => doc.data());
+
+  if (expenses.length === 0) {
+    return {reply: `No spending recorded ${timeFrameText}.`};
+  }
+
+  const totalSpending = expenses.reduce((acc, exp) => acc + exp.amount, 0);
+  const summary = expenses.map((exp) => `- ${exp.description}: $${exp.amount.toFixed(2)}`).join("\n");
+
+  return {
+    reply: `Here's your spending summary ${timeFrameText}:\n\n${summary}\n\nTotal: $${totalSpending.toFixed(2)}`,
+  };
+});
+
+export const createGoal = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {goalName, targetAmount, endDate, dailyLimit} = request.data;
+
+  if (!goalName || !targetAmount || !endDate || !dailyLimit) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing required fields: goalName, targetAmount, endDate, dailyLimit.",
+    );
+  }
+
+  const goal = {
+    goal_name: goalName,
+    target_amount: Number(targetAmount),
+    saved_amount: 0,
+    start_date: admin.firestore.Timestamp.now(),
+    end_date: admin.firestore.Timestamp.fromDate(new Date(endDate)),
+    daily_limit: Number(dailyLimit),
+    status: "active",
+    created_at: admin.firestore.Timestamp.now(),
+  };
+
+  await db.collection("users").doc(userId).collection("goals").add(goal);
+  return {success: true, message: "Goal created successfully."};
+});
+
+export const updateGoal = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {goalId, goalName, targetAmount, endDate, dailyLimit} = request.data;
+
+  if (!goalId) {
+    throw new HttpsError("invalid-argument", "goalId is required.");
+  }
+
+  const goalRef = db.collection("users").doc(userId).collection("goals").doc(goalId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateData: { [key: string]: any } = {};
+
+  if (goalName) updateData.goal_name = goalName;
+  if (targetAmount) updateData.target_amount = Number(targetAmount);
+  if (endDate) updateData.end_date = admin.firestore.Timestamp.fromDate(new Date(endDate));
+  if (dailyLimit) updateData.daily_limit = Number(dailyLimit);
+  updateData.updated_at = admin.firestore.Timestamp.now();
+
+  await goalRef.update(updateData);
+  return {success: true, message: "Goal updated successfully."};
+});
+
+export const deleteGoal = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {goalId} = request.data;
+
+  if (!goalId) {
+    throw new HttpsError("invalid-argument", "goalId is required.");
+  }
+
+  await db.collection("users").doc(userId).collection("goals").doc(goalId).delete();
+  return {success: true, message: "Goal deleted successfully."};
+});
+
+export const createBudget = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {category, amount} = request.data;
+
+  if (!category || !amount) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing required fields: category, amount.",
+    );
+  }
+
+  const now = new Date();
+  const budget = {
+    category,
+    amount: Number(amount),
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  };
+
+  await db.collection("users").doc(userId).collection("budgets").add(budget);
+  return {success: true, message: "Budget created successfully."};
+});
+
+export const updateBudget = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {budgetId, amount} = request.data;
+
+  if (!budgetId || !amount) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing required fields: budgetId, amount.",
+    );
+  }
+
+  await db.collection("users").doc(userId).collection("budgets").doc(budgetId).update({
+    amount: Number(amount),
+  });
+  return {success: true, message: "Budget updated successfully."};
+});
+
+export const deleteBudget = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = request.auth.uid;
+  const {budgetId} = request.data;
+
+  if (!budgetId) {
+    throw new HttpsError("invalid-argument", "budgetId is required.");
+  }
+
+  await db.collection("users").doc(userId).collection("budgets").doc(budgetId).delete();
+  return {success: true, message: "Budget deleted successfully."};
 });
 
 
