@@ -1,5 +1,4 @@
 // lib/screens/manage_categories_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -46,12 +45,15 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.category_outlined, size: 80, color: Colors.grey.shade400),
+                  Icon(Icons.category_outlined,
+                      size: 80, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   Text("No custom categories yet.",
-                      style: GoogleFonts.poppins(fontSize: 18, color: Colors.grey.shade600)),
+                      style: GoogleFonts.poppins(
+                          fontSize: 18, color: Colors.grey.shade600)),
                   const SizedBox(height: 8),
-                  Text("Tap the '+' button to add your first custom category!",
+                  Text(
+                      "Tap the '+' button to add your first custom category!",
                       style: GoogleFonts.poppins(color: Colors.grey.shade500)),
                   const SizedBox(height: 20),
                 ],
@@ -68,18 +70,22 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 8.0),
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: category.color.withOpacity(0.1),
                     child: Icon(category.icon, color: category.color),
                   ),
-                  title: Text(category.name, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                  title: Text(category.name,
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                   subtitle: Text(category.type.name.toUpperCase(),
-                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: Colors.grey)),
                   trailing: IconButton(
                     icon: const Icon(Icons.edit, color: Colors.deepPurple),
-                    onPressed: () => _showAddEditCategoryDialog(category: category),
+                    onPressed: () =>
+                        _showAddEditCategoryDialog(category: category),
                   ),
                   onLongPress: () => _confirmAndDeleteCategory(category),
                 ),
@@ -95,8 +101,10 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
     final bool isEditing = category != null;
     final TextEditingController nameController =
         TextEditingController(text: isEditing ? category!.name : '');
-    TransactionType selectedType = isEditing ? category!.type : TransactionType.expense;
-    Color selectedColor = isEditing ? category!.color : Theme.of(context).primaryColor;
+    TransactionType selectedType =
+        isEditing ? category!.type : TransactionType.expense;
+    Color selectedColor =
+        isEditing ? category!.color : Theme.of(context).primaryColor;
     IconData selectedIcon = isEditing ? category!.icon : Icons.category;
     final _formKey = GlobalKey<FormState>();
 
@@ -106,72 +114,82 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
         builder: (BuildContext context, StateSetter setStateInDialog) {
           return AlertDialog(
             title: Text(isEditing ? 'Edit Category' : 'Add New Category'),
-            content: SingleChildScrollView(
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Category Name'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty ? 'Please enter a name' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<TransactionType>(
-                      value: selectedType,
-                      decoration: const InputDecoration(labelText: 'Category Type'),
-                      items: TransactionType.values
-                          .map((type) => DropdownMenuItem(
-                              value: type, child: Text(type.name.toUpperCase())))
-                          .toList(),
-                      onChanged: (newValue) {
-                        if (newValue != null) {
-                          setStateInDialog(() {
-                            selectedType = newValue;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ListTile(
-                      title: const Text("Select Color"),
-                      trailing: CircleAvatar(backgroundColor: selectedColor),
-                      onTap: () async {
-                        Color? newColor = await showDialog<Color>(
-                          context: ctx,
-                          builder: (colorDialogCtx) => AlertDialog(
-                            title: const Text('Pick a color!'),
-                            content: SingleChildScrollView(
-                              child: ColorPicker(
-                                pickerColor: selectedColor,
-                                onColorChanged: (color) {
-                                  selectedColor = color;
-                                },
-                                enableAlpha: false,
-                                displayThumbColor: true,
-                                paletteType: PaletteType.hueWheel,
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.8,
+              height: MediaQuery.of(context).size.height * 0.4,
+              child: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nameController,
+                        decoration:
+                            const InputDecoration(labelText: 'Category Name'),
+                        validator: (value) => value == null ||
+                                value.trim().isEmpty
+                            ? 'Please enter a name'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<TransactionType>(
+                        value: selectedType,
+                        decoration:
+                            const InputDecoration(labelText: 'Category Type'),
+                        items: TransactionType.values
+                            .map((type) => DropdownMenuItem(
+                                value: type,
+                                child: Text(type.name.toUpperCase())))
+                            .toList(),
+                        onChanged: (newValue) {
+                          if (newValue != null) {
+                            setStateInDialog(() {
+                              selectedType = newValue;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        title: const Text("Select Color"),
+                        trailing: CircleAvatar(backgroundColor: selectedColor),
+                        onTap: () async {
+                          Color? newColor = await showDialog<Color>(
+                            context: ctx,
+                            builder: (colorDialogCtx) => AlertDialog(
+                              title: const Text('Pick a color!'),
+                              content: SingleChildScrollView(
+                                child: ColorPicker(
+                                  pickerColor: selectedColor,
+                                  onColorChanged: (color) {
+                                    selectedColor = color;
+                                  },
+                                  enableAlpha: false,
+                                  displayThumbColor: true,
+                                  paletteType: PaletteType.hueWheel,
+                                ),
                               ),
+                              actions: <Widget>[
+                                TextButton(
+                                  child: const Text('DONE'),
+                                  onPressed: () {
+                                    Navigator.of(colorDialogCtx)
+                                        .pop(selectedColor);
+                                  },
+                                ),
+                              ],
                             ),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('DONE'),
-                                onPressed: () {
-                                  Navigator.of(colorDialogCtx).pop(selectedColor);
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                        if (newColor != null) {
-                          setStateInDialog(() {
-                            selectedColor = newColor;
-                          });
-                        }
-                      },
-                    ),
-                  ],
+                          );
+                          if (newColor != null) {
+                            setStateInDialog(() {
+                              selectedColor = newColor;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -187,27 +205,35 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
                       id: isEditing ? category!.id : null,
                       name: nameController.text.trim(),
                       type: selectedType,
-                      colorHex: selectedColor.value.toRadixString(16).substring(2).toUpperCase(),
+                      colorHex: selectedColor.value
+                          .toRadixString(16)
+                          .substring(2)
+                          .toUpperCase(),
                       iconCodePoint: selectedIcon.codePoint.toString(),
                     );
 
                     try {
                       if (isEditing) {
-                        await _firestoreService.updateUserCategory(widget.user.uid, newCategory);
-                        showCustomSnackbar(context, 'Category updated successfully!');
+                        await _firestoreService.updateUserCategory(
+                            widget.user.uid, newCategory);
+                        showCustomSnackbar(
+                            context, 'Category updated successfully!');
                       } else {
-                        await _firestoreService.addUserCategory(widget.user.uid, newCategory);
-                        showCustomSnackbar(context, 'Category added successfully!');
+                        await _firestoreService.addUserCategory(
+                            widget.user.uid, newCategory);
+                        showCustomSnackbar(
+                            context, 'Category added successfully!');
                       }
                       Navigator.of(ctx).pop();
                     } catch (e) {
-                      showCustomSnackbar(context, 'Failed to save category. Please try again.',
+                      showCustomSnackbar(
+                          context, 'Failed to save category. Please try again.',
                           type: SnackbarType.error);
                       print('Error saving category: $e');
                     }
                   }
                 },
-                child: Text(isEditing ? 'Save Changes' : 'Add Category'),
+                child: Text(isEditing ? 'Save Changes' : 'Add'),
               ),
             ],
           );
@@ -224,7 +250,9 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
         content: Text(
             "Are you sure you want to delete '${category.name}'? This action cannot be undone and transactions using this category will still refer to it."),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text("Cancel")),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -236,10 +264,12 @@ class _ManageCategoriesPageState extends State<ManageCategoriesPage> {
 
     if (confirm == true) {
       try {
-        await _firestoreService.deleteUserCategory(widget.user.uid, category.id!);
+        await _firestoreService.deleteUserCategory(
+            widget.user.uid, category.id!);
         showCustomSnackbar(context, 'Category deleted successfully!');
       } catch (e) {
-        showCustomSnackbar(context, 'Failed to delete category. Please try again.',
+        showCustomSnackbar(
+            context, 'Failed to delete category. Please try again.',
             type: SnackbarType.error);
         print('Error deleting category: $e');
       }

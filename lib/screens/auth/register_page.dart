@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tajiri_ai/core/data/default_categories.dart';
 import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -51,6 +52,19 @@ class _RegisterPageState extends State<RegisterPage> {
           'photoUrl': null, // You can set a default or leave it null
           'phoneNumber': null,
         });
+
+        // 4. Add default categories for the new user
+        final batch = FirebaseFirestore.instance.batch();
+        final categoriesCollection = FirebaseFirestore.instance
+            .collection('users')
+            .doc(newUser.uid)
+            .collection('categories');
+
+        for (final category in defaultCategories) {
+          final docRef = categoriesCollection.doc();
+          batch.set(docRef, category.toJson());
+        }
+        await batch.commit();
 
         await newUser.reload();
       }

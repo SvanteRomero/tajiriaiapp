@@ -1,5 +1,7 @@
+// lib/core/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tajiri_ai/core/models/account_model.dart';
+import 'package:tajiri_ai/core/models/budget_model.dart';
 import 'package:tajiri_ai/core/models/transaction_model.dart';
 import 'package:tajiri_ai/core/models/goal_model.dart';
 import 'package:tajiri_ai/core/models/user_category_model.dart'; // NEW: Import UserCategory
@@ -69,11 +71,13 @@ class FirestoreService {
       }
 
       // Calculate the new balance
-      double currentBalance = (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
+      double currentBalance =
+          (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ??
+              0.0;
       double newBalance = transaction.type == TransactionType.income
           ? currentBalance + transaction.amount
           : currentBalance - transaction.amount;
-      
+
       // Update the account balance
       firestoreTransaction.update(accountRef, {'balance': newBalance});
 
@@ -83,7 +87,8 @@ class FirestoreService {
   }
 
   // NEW: Method to update a transaction and atomically adjust account balance
-  Future<void> updateTransaction(String userId, TransactionModel oldTransaction, TransactionModel newTransaction) {
+  Future<void> updateTransaction(String userId,
+      TransactionModel oldTransaction, TransactionModel newTransaction) {
     final transactionRef = _db
         .collection('users')
         .doc(userId)
@@ -102,15 +107,23 @@ class FirestoreService {
 
     return _db.runTransaction((firestoreTransaction) async {
       // 1. Get old and new account documents
-      DocumentSnapshot oldAccountDoc = await firestoreTransaction.get(oldAccountRef);
-      DocumentSnapshot newAccountDoc = await firestoreTransaction.get(newAccountRef);
+      DocumentSnapshot oldAccountDoc =
+          await firestoreTransaction.get(oldAccountRef);
+      DocumentSnapshot newAccountDoc =
+          await firestoreTransaction.get(newAccountRef);
 
       if (!oldAccountDoc.exists || !newAccountDoc.exists) {
         throw Exception("One or both accounts not found!");
       }
 
-      double oldAccountBalance = (oldAccountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
-      double newAccountBalance = (newAccountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
+      double oldAccountBalance =
+          (oldAccountDoc.data() as Map<String, dynamic>)['balance']
+                  ?.toDouble() ??
+              0.0;
+      double newAccountBalance =
+          (newAccountDoc.data() as Map<String, dynamic>)['balance']
+                  ?.toDouble() ??
+              0.0;
 
       // 2. Reverse the old transaction's impact on its account
       if (oldTransaction.type == TransactionType.income) {
@@ -130,7 +143,8 @@ class FirestoreService {
       firestoreTransaction.update(oldAccountRef, {'balance': oldAccountBalance});
       // Only update newAccountRef if it's different from oldAccountRef
       if (oldTransaction.accountId != newTransaction.accountId) {
-        firestoreTransaction.update(newAccountRef, {'balance': newAccountBalance});
+        firestoreTransaction.update(
+            newAccountRef, {'balance': newAccountBalance});
       }
 
       // 5. Update the transaction document
@@ -157,7 +171,9 @@ class FirestoreService {
         throw Exception("Account not found!");
       }
 
-      double currentBalance = (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
+      double currentBalance =
+          (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ??
+              0.0;
       double newBalance;
 
       // Reverse the transaction's impact
@@ -174,7 +190,6 @@ class FirestoreService {
       firestoreTransaction.delete(transactionRef);
     });
   }
-
 
   // Example method to fetch transactions for a user
   Stream<List<TransactionModel>> getTransactions(String userId) {
@@ -241,8 +256,9 @@ class FirestoreService {
         .collection('daily_logs')
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => DailyLog.fromFirestore(doc.data())).toList());
+        .map((snapshot) => snapshot.docs
+            .map((doc) => DailyLog.fromFirestore(doc.data()))
+            .toList());
   }
 
   // NEW: Category Management Methods
@@ -257,15 +273,17 @@ class FirestoreService {
   }
 
   // Method to fetch user-defined categories
-  Stream<List<UserCategory>> getUserCategories(String userId, {TransactionType? type}) {
+  Stream<List<UserCategory>> getUserCategories(String userId,
+      {TransactionType? type}) {
     Query query = _db.collection('users').doc(userId).collection('categories');
 
     if (type != null) {
       query = query.where('type', isEqualTo: type.name);
     }
 
-    return query.snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => UserCategory.fromFirestore(doc)).toList());
+    return query.snapshots().map((snapshot) => snapshot.docs
+        .map((doc) => UserCategory.fromFirestore(doc))
+        .toList());
   }
 
   // Method to update an existing user-defined category
@@ -288,6 +306,51 @@ class FirestoreService {
         .doc(userId)
         .collection('categories')
         .doc(categoryId)
+        .delete();
+  }
+
+  // --- BUDGET RELATED METHODS ---
+
+  // Method to fetch budgets for the current month
+  Stream<List<Budget>> getBudgets(String userId) {
+    final now = DateTime.now();
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('budgets')
+        .where('month', isEqualTo: now.month)
+        .where('year', isEqualTo: now.year)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Budget.fromFirestore(doc)).toList());
+  }
+
+  // Method to add a new budget
+  Future<void> addBudget(String userId, Budget budget) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('budgets')
+        .add(budget.toJson());
+  }
+
+  // Method to update an existing budget
+  Future<void> updateBudget(String userId, Budget budget) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('budgets')
+        .doc(budget.id)
+        .update(budget.toJson());
+  }
+
+  // Method to delete a budget
+  Future<void> deleteBudget(String userId, String budgetId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('budgets')
+        .doc(budgetId)
         .delete();
   }
 }

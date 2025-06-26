@@ -5,7 +5,7 @@ import 'analytics.dart';
 import 'dashboard_page.dart';
 import 'profile_page.dart';
 import 'add_transaction_page.dart';
-import 'my_goals_page.dart'; // Import the MyGoalsPage
+import 'budget_n_goals_page.dart'; // Import the MyGoalsPage
 
 class HomePage extends StatefulWidget {
   final User user;
