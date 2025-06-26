@@ -1,14 +1,15 @@
 // lib/screens/add_transaction_page.dart
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:tajiri_ai/core/models/account_model.dart';
+import '/core/models/account_model.dart';
 import '/core/models/transaction_model.dart';
-import 'package:logging/logging.dart';
 import '/core/utils/snackbar_utils.dart';
 import '/core/services/firestore_service.dart';
 import '/core/models/user_category_model.dart';
-import 'manage_categories_page.dart';
+import 'manage_categories_page.dart'
+;
 
 class AddTransactionPage extends StatefulWidget {
   final User user;
@@ -181,6 +182,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
         if (_selectedType == TransactionType.transfer) {
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: _buildAccountDropdown(accounts, true)),
               const SizedBox(width: 16),
@@ -199,17 +201,21 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       value: isFrom ? _selectedFromAccount : _selectedToAccount,
       hint: Text(isFrom ? "From Account" : "To Account"),
       decoration: InputDecoration(labelText: isFrom ? "From" : "To"),
+      isExpanded: true,
       items: accounts.map((Account account) {
         return DropdownMenuItem<Account>(
           value: account,
-          child: Text('${account.name} (${account.currency})'),
+          child: Text(
+            '${account.name} (${account.currency})',
+            overflow: TextOverflow.ellipsis,
+          ),
         );
       }).toList(),
       onChanged: (Account? newValue) {
         setState(() {
           if (isFrom) {
             _selectedFromAccount = newValue;
-            _selectedToAccount = null; // Reset "to" account when "from" changes
+            _selectedToAccount = null; 
           } else {
             _selectedToAccount = newValue;
           }
@@ -244,6 +250,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         setState(() {
           _selectedType = newSelection.first;
           _selectedCategory = null;
+          _selectedFromAccount = null;
+          _selectedToAccount = null;
         });
       },
     );

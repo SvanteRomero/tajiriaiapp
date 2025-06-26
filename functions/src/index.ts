@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-// functions/src/index.ts
+/* eslint-disable linebreak-style */
 /* eslint-disable max-len */
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
-import {onSchedule} from "firebase-functions/v2/scheduler"; // Correct import for scheduled functions
+import {onSchedule} from "firebase-functions/v2/scheduler";
 import {GoogleAuth} from "google-auth-library";
 import {VertexAI} from "@google-cloud/vertexai";
 
@@ -12,8 +11,6 @@ import {VertexAI} from "@google-cloud/vertexai";
 admin.initializeApp();
 const db = admin.firestore();
 
-// Make sure to set this secret using the Firebase CLI:
-// firebase functions:secrets:set GEMINI_API_KEY
 functions.params.defineString("GEMINI_API_KEY");
 
 /**
@@ -56,28 +53,20 @@ function getDateRangeFromText(text: string): {startDate: Date, endDate: Date, ti
   return {startDate, endDate, timeFrameText};
 }
 
-// Existing getAdvisoryMessage function (modified to use CallableRequest type hint)
+// Function specifically for the AI Advisor Chat
 export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
-  // 1. Authenticate the user - access auth from request.auth
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-  const userId = request.auth.uid;
-  // Access the message from request.data
+  const userId = request.auth.uid; // Used to fetch user-specific data
   const userMessage = request.data.message as string;
 
   if (!userMessage) {
-    throw new HttpsError(
-      "invalid-argument",
-      "The function must be called with a 'message' argument.",
-    );
+    throw new HttpsError("invalid-argument", "The function must be called with a 'message' argument.");
   }
 
   try {
-    // --- FETCH TRANSACTIONS (EXPENSE DATA) ---
+    // --- FETCH USER-SPECIFIC FINANCIAL DATA ---
     const {startDate, endDate, timeFrameText} = getDateRangeFromText(userMessage);
 
     let expenseQuery: admin.firestore.Query = db
@@ -94,17 +83,17 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
 
     const expenseContext = expenses.length > 0 ?
       expenses
-        .map((exp) => `- ${exp.description || exp.category}: $${exp.amount.toFixed(2)} on ${new Date(exp.date._seconds * 1000).toLocaleDateString()}`)
+        .map((exp) => `- ${exp.description || exp.category}: ${exp.currency} ${exp.amount.toFixed(2)} on ${new Date(exp.date._seconds * 1000).toLocaleDateString()}`)
         .join("\n") : "No expenses were found for this period.";
 
-    // --- FETCH GOALS DATA ---
     const goalsSnapshot = await db.collection("users").doc(userId).collection("goals").get();
     const goals = goalsSnapshot.docs.map((doc) => doc.data());
 
     const goalsContext = goals.length > 0 ?
       goals
-        .map((goal) => `- Goal: '${goal.goal_name}', Progress: $${goal.saved_amount.toFixed(2)} / $${goal.target_amount.toFixed(2)}`)
+        .map((goal) => `- Goal: '${goal.goal_name}', Progress: ${goal.saved_amount.toFixed(2)} / ${goal.target_amount.toFixed(2)}`)
         .join("\n") : "No active savings goals found.";
+
 
     // --- CONSTRUCT THE PROMPT ---
     const prompt = `
@@ -113,8 +102,8 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       A user is asking for advice. Your tone should be encouraging and non-judgmental.
 
       USER'S QUESTION: "${userMessage}"
-
-      Based on the user's question, I have retrieved the following financial data:
+      
+      Based on the user's question, I have retrieved the following financial data for this user:
 
       1. SPENDING DATA ${timeFrameText}:
       ${expenseContext}
@@ -122,7 +111,7 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       2. ACTIVE SAVINGS GOALS:
       ${goalsContext}
 
-      Based on ALL of this data (both spending and goals), provide a concise, helpful, and actionable response (max 3-4 sentences).
+      Based on ALL of this data (spending and goals), provide a concise, helpful, and actionable response (max 3-4 sentences).
       Connect their spending habits to their goal progress where relevant. For example, if they ask about saving money, you can suggest cutting back on a high-spending category to help them reach their goals faster.
       If no data was found, state that. If their question is not related to finance, politely decline to answer.
     `;
@@ -134,7 +123,7 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
     const vertexAI = new VertexAI({project: projectId, location: location});
 
     const generativeModel = vertexAI.preview.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-pro",
     });
 
     const result = await generativeModel.generateContent(prompt);
@@ -144,33 +133,29 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       throw new HttpsError("internal", "No response from AI model.");
     }
 
-    const aiResponseText = response.candidates[0].content.parts[0].text;
+    const aiResponseText = response.candidates[0].content.parts[0]?.text;
 
-    return {reply: aiResponseText};
+    return {reply: aiResponseText ?? "Sorry, I couldn't process that. Could you try rephrasing?"};
   } catch (error) {
     if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsError directly
+      throw error;
     }
     console.error("Error in getAdvisoryMessage:", error);
     throw new HttpsError("internal", "An error occurred while getting your advice.");
   }
 });
 
+
+// Specific callable functions for direct UI actions
 export const createTransaction = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   const userId = request.auth.uid;
-  const {description, amount, type, category, accountId} = request.data;
+  const {description, amount, type, category, accountId, currency} = request.data;
 
-  if (!description || !amount || !type || !category || !accountId) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Missing required fields: description, amount, type, category, accountId.",
-    );
+  if (!description || !amount || !type || !category || !accountId || !currency) {
+    throw new HttpsError("invalid-argument", "Missing required fields.");
   }
 
   const transaction = {
@@ -179,6 +164,7 @@ export const createTransaction = onCall(async (request: CallableRequest) => {
     type,
     category,
     accountId,
+    currency,
     date: admin.firestore.Timestamp.now(),
   };
 
@@ -188,10 +174,7 @@ export const createTransaction = onCall(async (request: CallableRequest) => {
 
 export const getSpendingSummary = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   const userId = request.auth.uid;
   const {timeFrame} = request.data;
@@ -212,28 +195,22 @@ export const getSpendingSummary = onCall(async (request: CallableRequest) => {
   }
 
   const totalSpending = expenses.reduce((acc, exp) => acc + exp.amount, 0);
-  const summary = expenses.map((exp) => `- ${exp.description}: $${exp.amount.toFixed(2)}`).join("\n");
+  const summary = expenses.map((exp) => `- ${exp.description}: ${exp.currency} ${exp.amount.toFixed(2)}`).join("\n");
 
   return {
-    reply: `Here's your spending summary ${timeFrameText}:\n\n${summary}\n\nTotal: $${totalSpending.toFixed(2)}`,
+    reply: `Here's your spending summary ${timeFrameText}:\n\n${summary}\n\nTotal: ${totalSpending.toFixed(2)}`,
   };
 });
 
 export const createGoal = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   const userId = request.auth.uid;
   const {goalName, targetAmount, endDate, dailyLimit} = request.data;
 
   if (!goalName || !targetAmount || !endDate || !dailyLimit) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Missing required fields: goalName, targetAmount, endDate, dailyLimit.",
-    );
+    throw new HttpsError("invalid-argument", "Missing required fields: goalName, targetAmount, endDate, dailyLimit.");
   }
 
   const goal = {
@@ -251,67 +228,15 @@ export const createGoal = onCall(async (request: CallableRequest) => {
   return {success: true, message: "Goal created successfully."};
 });
 
-export const updateGoal = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
-  }
-  const userId = request.auth.uid;
-  const {goalId, goalName, targetAmount, endDate, dailyLimit} = request.data;
-
-  if (!goalId) {
-    throw new HttpsError("invalid-argument", "goalId is required.");
-  }
-
-  const goalRef = db.collection("users").doc(userId).collection("goals").doc(goalId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateData: { [key: string]: any } = {};
-
-  if (goalName) updateData.goal_name = goalName;
-  if (targetAmount) updateData.target_amount = Number(targetAmount);
-  if (endDate) updateData.end_date = admin.firestore.Timestamp.fromDate(new Date(endDate));
-  if (dailyLimit) updateData.daily_limit = Number(dailyLimit);
-  updateData.updated_at = admin.firestore.Timestamp.now();
-
-  await goalRef.update(updateData);
-  return {success: true, message: "Goal updated successfully."};
-});
-
-export const deleteGoal = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
-  }
-  const userId = request.auth.uid;
-  const {goalId} = request.data;
-
-  if (!goalId) {
-    throw new HttpsError("invalid-argument", "goalId is required.");
-  }
-
-  await db.collection("users").doc(userId).collection("goals").doc(goalId).delete();
-  return {success: true, message: "Goal deleted successfully."};
-});
-
 export const createBudget = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   const userId = request.auth.uid;
   const {category, amount} = request.data;
 
   if (!category || !amount) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Missing required fields: category, amount.",
-    );
+    throw new HttpsError("invalid-argument", "Missing required fields: category, amount.");
   }
 
   const now = new Date();
@@ -326,55 +251,66 @@ export const createBudget = onCall(async (request: CallableRequest) => {
   return {success: true, message: "Budget created successfully."};
 });
 
-export const updateBudget = onCall(async (request: CallableRequest) => {
+export const deleteTransaction = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   const userId = request.auth.uid;
-  const {budgetId, amount} = request.data;
+  const {transactionId} = request.data;
 
-  if (!budgetId || !amount) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Missing required fields: budgetId, amount.",
-    );
+  if (!transactionId) {
+    throw new HttpsError("invalid-argument", "transactionId is required.");
   }
 
-  await db.collection("users").doc(userId).collection("budgets").doc(budgetId).update({
-    amount: Number(amount),
+  await db.collection("users").doc(userId).collection("transactions").doc(transactionId).delete();
+  return {success: true, message: "Transaction deleted successfully."};
+});
+
+export const suggestDailyLimit = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+  const userId = request.auth.uid;
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoTimestamp = admin.firestore.Timestamp.fromDate(thirtyDaysAgo);
+
+  const expensesSnapshot = await db
+    .collection("users").doc(userId).collection("transactions")
+    .where("type", "==", "expense")
+    .where("date", ">=", thirtyDaysAgoTimestamp)
+    .get();
+
+  let totalSpending = 0;
+  const uniqueDays = new Set<string>();
+
+  expensesSnapshot.forEach((doc) => {
+    totalSpending += (doc.data().amount || 0);
+    const date = (doc.data().date as admin.firestore.Timestamp).toDate().toDateString();
+    uniqueDays.add(date);
   });
-  return {success: true, message: "Budget updated successfully."};
-});
 
-export const deleteBudget = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
-  }
-  const userId = request.auth.uid;
-  const {budgetId} = request.data;
+  const numberOfDays = uniqueDays.size > 0 ? uniqueDays.size : 30;
+  const suggestedLimit = totalSpending / numberOfDays;
 
-  if (!budgetId) {
-    throw new HttpsError("invalid-argument", "budgetId is required.");
+  let aiResponse = "";
+  if (totalSpending === 0) {
+    aiResponse = "I can't suggest a daily limit because you haven't recorded any expenses in the last 30 days. Start by tracking your spending to get a clearer picture!";
+  } else {
+    // Assuming TZS as a primary currency for suggestion text, this could be made more dynamic.
+    aiResponse = `Based on your average daily spending of TZS ${suggestedLimit.toFixed(2)} over the last month, a reasonable daily limit for your goal could be around TZS ${suggestedLimit.toFixed(2)}. You can adjust this based on how fast you want to save!`;
   }
 
-  await db.collection("users").doc(userId).collection("budgets").doc(budgetId).delete();
-  return {success: true, message: "Budget deleted successfully."};
+  return {reply: aiResponse};
 });
 
-
-// New Cloud Function to process daily goals
-export const processDailyGoals = onSchedule( // Fixed: use onSchedule from firebase-functions/v2/scheduler
+export const processDailyGoals = onSchedule(
   {
-    schedule: "every day 00:05", // Using a specific time
-    timeZone: "Africa/Dar_es_Salaam", // Specify the time zone for the schedule
+    schedule: "every day 00:05",
+    timeZone: "Africa/Dar_es_Salaam",
   },
-  async (_context) => { // Fixed: Renamed context to _context to suppress unused variable warning
+  async () => {
     console.log("Running daily goal processing...");
 
     const usersRef = db.collection("users");
@@ -383,29 +319,25 @@ export const processDailyGoals = onSchedule( // Fixed: use onSchedule from fireb
     for (const userDoc of usersSnapshot.docs) {
       const userId = userDoc.id;
       const goalsRef = usersRef.doc(userId).collection("goals");
-      const activeGoalsSnapshot = await goalsRef.where("goal_status", "==", "active").get();
+      const activeGoalsSnapshot = await goalsRef.where("status", "==", "active").get();
 
       for (const goalDoc of activeGoalsSnapshot.docs) {
         const goalData = goalDoc.data();
         const goalId = goalDoc.id;
 
         const dailyLimit = goalData.daily_limit;
-        const timezone = goalData.timezone || "Africa/Dar_es_Salaam"; // Use saved timezone or default
+        const timezone = goalData.timezone || "Africa/Dar_es_Salaam";
         const now = new Date();
 
-        // Convert current date to the user's timezone for accurate daily tracking
         const userTimeZoneDate = new Date(now.toLocaleString("en-US", {timeZone: timezone}));
-        userTimeZoneDate.setHours(0, 0, 0, 0); // Start of the day in user's timezone
+        userTimeZoneDate.setHours(0, 0, 0, 0);
         const startOfDay = admin.firestore.Timestamp.fromDate(userTimeZoneDate);
 
-        // End of the day in user's timezone (just before next midnight)
         const endOfDay = new Date(userTimeZoneDate);
         endOfDay.setDate(userTimeZoneDate.getDate() + 1);
         endOfDay.setMilliseconds(endOfDay.getMilliseconds() - 1);
         const endOfToday = admin.firestore.Timestamp.fromDate(endOfDay);
 
-
-        // Fetch user's expenses for today
         const expensesSnapshot = await usersRef
           .doc(userId)
           .collection("transactions")
@@ -420,41 +352,34 @@ export const processDailyGoals = onSchedule( // Fixed: use onSchedule from fireb
         });
 
         let savedAmountToday = 0;
-        let dailyStatus = "skipped"; // Default to skipped if no transactions
+        let dailyStatus = "skipped";
 
-        // Handle first-day edge case: if start_date is today, don't penalize for previous spending
         const goalStartDate = goalData.start_date.toDate();
         const isFirstDay = userTimeZoneDate.toDateString() === goalStartDate.toDateString();
 
-        if (totalSpentToday > 0 || !isFirstDay) { // Only process if there's spending or it's not the first day
+        if (totalSpentToday > 0 || !isFirstDay) {
           if (totalSpentToday <= dailyLimit) {
             savedAmountToday = dailyLimit - totalSpentToday;
             dailyStatus = "success";
             goalData.streak_count = (goalData.streak_count || 0) + 1;
-            console.log(`User ${userId} saved ${savedAmountToday} today for goal ${goalId}. Streak: ${goalData.streak_count}`);
           } else {
-            const overspentAmount = totalSpentToday - dailyLimit;
             dailyStatus = "failed";
-            goalData.streak_count = 0; // Reset streak
+            goalData.streak_count = 0;
             goalData.grace_days_used = (goalData.grace_days_used || 0) + 1;
-            console.warn(`User ${userId} overspent by ${overspentAmount} for goal ${goalId}. Grace days used: ${goalData.grace_days_used}`);
           }
         }
 
-
-        // Update goal document
         const newSavedAmount = (goalData.saved_amount || 0) + savedAmountToday;
-        const newGoalStatus = newSavedAmount >= goalData.target_amount ? "completed" : goalData.goal_status;
+        const newGoalStatus = newSavedAmount >= goalData.target_amount ? "completed" : goalData.status;
 
         await goalsRef.doc(goalId).update({
           saved_amount: newSavedAmount,
           streak_count: goalData.streak_count,
           grace_days_used: goalData.grace_days_used,
-          goal_status: newGoalStatus,
+          status: newGoalStatus,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Write a new daily_log document
         await goalsRef.doc(goalId).collection("daily_logs").doc(userTimeZoneDate.toISOString().split("T")[0]).set({
           date: startOfDay,
           spent_amount: totalSpentToday,
@@ -462,90 +387,11 @@ export const processDailyGoals = onSchedule( // Fixed: use onSchedule from fireb
           status: dailyStatus,
           comment: dailyStatus === "success" ? `Well done, ${savedAmountToday.toFixed(2)} saved!` : `Overspent by ${(totalSpentToday - dailyLimit).toFixed(2)}.`,
         });
-
-        // Trigger push notification (pseudo-code)
-        // You'll need to integrate with a notification service (e.g., Firebase Cloud Messaging)
-        let notificationMessage = "";
-        if (dailyStatus === "success") {
-          notificationMessage = `🎉 You saved ${savedAmountToday.toFixed(2)} towards your ${goalData.goal_name} goal today! Streak: ${goalData.streak_count} days.`;
-        } else if (dailyStatus === "failed") {
-          notificationMessage = `⚠️ You overspent today for your ${goalData.goal_name} goal. Grace days used: ${goalData.grace_days_used}.`;
-        } else {
-          notificationMessage = `Daily goal check completed for ${goalData.goal_name}.`;
-        }
-
-        // Example: Send notification via FCM (requires client-side token registration)
-        // admin.messaging().sendToDevice(userFcmToken, { notification: { title: 'Goal Update', body: notificationMessage } });
-        console.log(`Notification for user ${userId}: ${notificationMessage}`);
-
-
-        // Optionally trigger Tajiri AI chat message (can be a separate callable function)
-        // This is a simplified example; a real implementation would involve a more complex AI interaction flow.
-        let aiFeedback = "";
-        if (newGoalStatus === "completed") {
-          aiFeedback = `🎊 Congrats! You've successfully completed your goal: ${goalData.goal_name}! Your dedication paid off.`;
-          console.log(`AI message for user ${userId}: ${aiFeedback}`);
-          // You could then save this message to a 'messages' subcollection for the AI chat.
-        } else if (dailyStatus === "success" && goalData.streak_count > 0 && goalData.streak_count % 7 === 0) {
-          aiFeedback = `Awesome consistency! You're on a ${goalData.streak_count}-day saving streak for your ${goalData.goal_name} goal. Keep it up!`;
-          console.log(`AI message for user ${userId}: ${aiFeedback}`);
-        } else if (dailyStatus === "failed" && goalData.grace_days_used > 0) {
-          aiFeedback = `It looks like you went a little over your daily limit today for your ${goalData.goal_name} goal. You've used ${goalData.grace_days_used} grace days. Let's get back on track tomorrow!`;
-          console.log(`AI message for user ${userId}: ${aiFeedback}`);
-        }
-        // To trigger AI message, you'd call a separate function here or directly write to a chat collection
-        // await db.collection("users").doc(userId).collection("messages").add({
-        //   text: aiFeedback,
-        //   isFromUser: false,
-        //   timestamp: admin.firestore.FieldValue.serverTimestamp()
-        // });
       }
     }
     console.log("Daily goal processing finished.");
   });
 
-// Callable function to suggest daily limit (AI Assistant)
-export const suggestDailyLimit = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated.",
-    );
-  }
-  const userId = request.auth.uid;
-
-  // Calculate average daily spending for the last 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoTimestamp = admin.firestore.Timestamp.fromDate(thirtyDaysAgo);
-
-  const expensesSnapshot = await db
-    .collection("users").doc(userId).collection("transactions")
-    .where("type", "==", "expense")
-    .where("date", ">=", thirtyDaysAgoTimestamp)
-    .get();
-
-  let totalSpending = 0;
-  const uniqueDays = new Set<string>(); // Fixed: Changed 'let' to 'const'
-
-  expensesSnapshot.forEach((doc) => {
-    totalSpending += (doc.data().amount || 0);
-    const date = (doc.data().date as admin.firestore.Timestamp).toDate().toDateString();
-    uniqueDays.add(date);
-  });
-
-  const numberOfDays = uniqueDays.size > 0 ? uniqueDays.size : 30; // Prevent division by zero, default to 30 days if no expenses
-  const suggestedLimit = totalSpending / numberOfDays;
-
-  let aiResponse = "";
-  if (totalSpending === 0) {
-    aiResponse = "Based on your spending history, I recommend setting a realistic daily spending limit. You haven't recorded any expenses in the last 30 days, so start by tracking your usual spending to get a clearer picture.";
-  } else {
-    aiResponse = `Based on your average daily spending of TZS ${suggestedLimit.toFixed(2)} over the last 30 days, a reasonable daily spending limit for your goal could be TZS ${suggestedLimit.toFixed(2)}. Remember, setting a slightly lower limit can help you reach your goals faster!`;
-  }
-
-  return {reply: aiResponse};
-});
 
 export const deleteAbandonedGoals = onSchedule(
   {
@@ -569,7 +415,7 @@ export const deleteAbandonedGoals = onSchedule(
         .collection("goals");
 
       const abandonedGoalsQuery = goalsRef
-        .where("goal_status", "==", "abandoned")
+        .where("status", "==", "abandoned")
         .where("abandoned_at", "<=", cutoffTimestamp);
 
       const goalsToDeleteSnapshot = await abandonedGoalsQuery.get();

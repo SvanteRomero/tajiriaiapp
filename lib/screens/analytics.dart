@@ -4,16 +4,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '/core/services/firestore_service.dart';
-import '/core/models/transaction_model.dart';
-import '/core/models/user_category_model.dart';
+import 'package:tajiri_ai/core/models/account_model.dart';
+import 'package:tajiri_ai/core/services/firestore_service.dart';
+import 'package:tajiri_ai/core/models/transaction_model.dart';
+import 'package:tajiri_ai/core/models/user_category_model.dart';
 
 class CategoryData {
   final String category;
   final double amount;
   final Color color;
   final IconData icon;
-  CategoryData(this.category, this.amount, this.color, this.icon);
+  final String currency;
+
+  CategoryData(this.category, this.amount, this.color, this.icon, this.currency);
 }
 
 class MonthlyAnalytics {
@@ -84,7 +87,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           .where((t) => t.date.isAfter(startDate))
           .toList();
       final userCategories = await _firestoreService.getUserCategories(widget.user.uid).first;
+      final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
       final Map<String, UserCategory> categoryMap = {for (var cat in userCategories) cat.name: cat};
+      final Map<String, Account> accountMap = {for (var acc in accounts) acc.id: acc};
 
       // Monthly analytics for the last 6 months
       final monthlyAnalytics = <String, MonthlyAnalytics>{};
@@ -135,7 +140,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         final UserCategory? customCategory = categoryMap[categoryName];
         final Color categoryColor = customCategory?.color ?? Colors.grey;
         final IconData categoryIcon = customCategory?.icon ?? Icons.category;
-        return CategoryData(categoryName, amount, categoryColor, categoryIcon);
+        final account = accountMap[currentPeriodExpenses.firstWhere((t) => t.category == categoryName).accountId];
+        final currency = account?.currency ?? '\$';
+        return CategoryData(categoryName, amount, categoryColor, categoryIcon, currency);
       }).toList();
       spendingByCategory.sort((a, b) => b.amount.compareTo(a.amount));
 
@@ -153,7 +160,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         final UserCategory? customCategory = categoryMap[categoryName];
         final Color categoryColor = customCategory?.color ?? Colors.grey;
         final IconData categoryIcon = customCategory?.icon ?? Icons.category;
-        return CategoryData(categoryName, amount, categoryColor, categoryIcon);
+        final account = accountMap[currentPeriodIncome.firstWhere((t) => t.category == categoryName).accountId];
+        final currency = account?.currency ?? '\$';
+        return CategoryData(categoryName, amount, categoryColor, categoryIcon, currency);
       }).toList();
       incomeByCategory.sort((a, b) => b.amount.compareTo(a.amount));
 
@@ -163,6 +172,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         "totalIncome": totalIncome,
         "incomeByCategory": incomeByCategory,
         "monthlyAnalytics": monthlyAnalytics.values.toList(),
+        "accounts": accounts,
       };
     } catch (e) {
       print('Error fetching analytics data: $e');
@@ -249,6 +259,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               final spendingByCategory = data['spendingByCategory'] as List<CategoryData>;
               final incomeByCategory = data['incomeByCategory'] as List<CategoryData>;
               final monthlyAnalytics = data['monthlyAnalytics'] as List<MonthlyAnalytics>;
+              final accounts = data['accounts'] as List<Account>;
+              final currencySymbol = accounts.isNotEmpty ? accounts.first.currency : '\$';
 
               return RefreshIndicator(
                 onRefresh: () async {
@@ -259,7 +271,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 child: ListView(
                   padding: const EdgeInsets.all(16.0),
                   children: [
-                    _buildSummaryCard(totalSpending, totalIncome),
+                    _buildSummaryCard(totalSpending, totalIncome, currencySymbol),
                     const SizedBox(height: 24),
                     if (monthlyAnalytics.isNotEmpty && monthlyAnalytics.any((m) => m.income > 0 || m.expense > 0)) ...[
                       _buildIncomeExpenditureBarChart(monthlyAnalytics),
@@ -294,7 +306,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildSummaryCard(double totalSpending, double totalIncome) {
+  Widget _buildSummaryCard(double totalSpending, double totalIncome, String currencySymbol) {
     final periodTitle = _getPeriodTitle();
     return Container(
       width: double.infinity,
@@ -324,7 +336,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            NumberFormat.currency(symbol: '\$').format(totalSpending),
+            NumberFormat.currency(symbol: currencySymbol).format(totalSpending),
             style: GoogleFonts.poppins(
               color: Colors.white,
               fontSize: 30,
@@ -339,7 +351,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            NumberFormat.currency(symbol: '\$').format(totalIncome),
+            NumberFormat.currency(symbol: currencySymbol).format(totalIncome),
             style: GoogleFonts.poppins(
               color: Colors.white,
               fontSize: 30,
@@ -431,7 +443,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  NumberFormat.currency(symbol: '\$').format(category.amount),
+                  NumberFormat.currency(symbol: category.currency).format(category.amount),
                   style: GoogleFonts.poppins(color: Colors.grey.shade600, fontSize: 13),
                 ),
               ],
