@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:tajiri_ai/core/models/account_model.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
+import '/core/data/currencies.dart';
+import '/core/models/account_model.dart';
+import '/core/services/firestore_service.dart';
+import 'add_goal_page.dart';
 import 'edit_profile_page.dart';
 import 'package:tajiri_ai/screens/auth/login_page.dart';
-import 'package:tajiri_ai/screens/add_goal_page.dart';
-import 'package:tajiri_ai/screens/edit_account_page.dart';
-import 'package:tajiri_ai/screens/manage_categories_page.dart'; // NEW: Import ManageCategoriesPage
+import 'edit_account_page.dart';
+import 'manage_categories_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final User user;
@@ -52,71 +53,97 @@ class _ProfilePageState extends State<ProfilePage> {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController balanceController = TextEditingController();
     final _formKey = GlobalKey<FormState>();
+    String selectedCurrency = 'USD'; // Default currency
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Add New Account'),
-          content: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Account Name'),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter a name' : null,
+        return StatefulBuilder( // Use StatefulBuilder to update state inside the dialog
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Add New Account'),
+              content: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nameController,
+                        decoration:
+                            const InputDecoration(labelText: 'Account Name'),
+                        validator: (value) =>
+                            value!.isEmpty ? 'Please enter a name' : null,
+                      ),
+                      TextFormField(
+                        controller: balanceController,
+                        decoration:
+                            const InputDecoration(labelText: 'Initial Balance'),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value!.isEmpty) return 'Please enter a balance';
+                          if (double.tryParse(value) == null)
+                            return 'Invalid number';
+                          return null;
+                        },
+                      ),
+                      DropdownButtonFormField<String>(
+                        value: selectedCurrency,
+                        decoration: const InputDecoration(labelText: 'Currency'),
+                        items: currencies.keys.map((String key) {
+                          return DropdownMenuItem<String>(
+                            value: key,
+                            child: Text(key),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue != null) {
+                            setState(() {
+                              selectedCurrency = newValue;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                TextFormField(
-                  controller: balanceController,
-                  decoration: const InputDecoration(labelText: 'Initial Balance'),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value!.isEmpty) return 'Please enter a balance';
-                    if (double.tryParse(value) == null) return 'Invalid number';
-                    return null;
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      final newAccount = Account(
+                        id: '', // Firestore will generate this
+                        name: nameController.text,
+                        balance: double.parse(balanceController.text),
+                        currency: selectedCurrency,
+                      );
+                      _firestoreService.addAccount(_currentUser.uid, newAccount);
+                      Navigator.of(context).pop();
+                    }
                   },
+                  child: const Text('Add'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  final newAccount = Account(
-                    id: '', // Firestore will generate this
-                    name: nameController.text,
-                    balance: double.parse(balanceController.text),
-                  );
-                  _firestoreService.addAccount(_currentUser.uid, newAccount);
-                  Navigator.of(context).pop();
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
-  // New method to navigate to AddGoalPage
   void _navigateToAddGoalPage() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AddGoalPage(user: widget.user), // Pass the current user
+        builder: (_) => AddGoalPage(user: widget.user),
       ),
     );
   }
 
-  // NEW: Method to navigate to ManageCategoriesPage
   void _navigateToManageCategoriesPage() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -199,7 +226,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   label: const Text("Add New Goal"),
                 ),
               ),
-              // NEW: Button to Manage Categories
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -250,7 +276,10 @@ class _ProfilePageState extends State<ProfilePage> {
               child: ListTile(
                 title: Text(account.name),
                 trailing: Text(
-                  NumberFormat.currency(symbol: '\$').format(account.balance),
+                  NumberFormat.currency(
+                    symbol: account.currency, // Use the account's currency
+                    decimalDigits: 2,
+                  ).format(account.balance),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 onTap: () async {
@@ -260,7 +289,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   );
                   if (result == true) {
-                    setState(() { /* Rebuild to reflect changes from EditAccountPage */ });
+                    setState(() {});
                   }
                 },
               ),

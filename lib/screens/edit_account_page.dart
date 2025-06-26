@@ -1,9 +1,10 @@
 // lib/screens/edit_account_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:tajiri_ai/core/models/account_model.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
-import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
+import '/core/data/currencies.dart';
+import '/core/models/account_model.dart';
+import '/core/services/firestore_service.dart';
+import '/core/utils/snackbar_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class EditAccountPage extends StatefulWidget {
@@ -20,6 +21,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _balanceController;
+  late String _selectedCurrency;
   bool _isLoading = false;
   final FirestoreService _firestoreService = FirestoreService();
 
@@ -28,6 +30,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
     super.initState();
     _nameController = TextEditingController(text: widget.account.name);
     _balanceController = TextEditingController(text: widget.account.balance.toStringAsFixed(2));
+    _selectedCurrency = widget.account.currency;
   }
 
   @override
@@ -49,6 +52,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
         id: widget.account.id,
         name: _nameController.text.trim(),
         balance: double.parse(_balanceController.text),
+        currency: _selectedCurrency,
       );
 
       await _firestoreService.updateAccount(widget.user.uid, updatedAccount);
@@ -72,7 +76,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Delete Account?"),
-        content: Text("Are you sure you want to delete '${widget.account.name}'? This action cannot be undone."),
+        content: Text("Are you sure you want to delete '${widget.account.name}'? This action cannot be undone, and all associated transactions will be affected."),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -93,7 +97,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
         await _firestoreService.deleteAccount(widget.user.uid, widget.account.id);
         if (mounted) {
           showCustomSnackbar(context, 'Account deleted successfully!');
-          Navigator.of(context).pop(true); // Pop with true to indicate success
+          Navigator.of(context).pop(true);
         }
       } catch (e) {
         if (mounted) {
@@ -136,12 +140,30 @@ class _EditAccountPageState extends State<EditAccountPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _balanceController,
-                decoration: const InputDecoration(labelText: "Current Balance", prefixText: "\$ "),
+                decoration: InputDecoration(labelText: "Current Balance", prefixText: "$_selectedCurrency "),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Please enter a balance';
                   if (double.tryParse(value) == null) return 'Invalid number';
                   return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedCurrency,
+                decoration: const InputDecoration(labelText: 'Currency'),
+                items: currencies.keys.map((String key) {
+                  return DropdownMenuItem<String>(
+                    value: key,
+                    child: Text(key),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedCurrency = newValue;
+                    });
+                  }
                 },
               ),
               const SizedBox(height: 30),

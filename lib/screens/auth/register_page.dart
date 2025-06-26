@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:tajiri_ai/core/data/default_categories.dart';
-import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
+import '/core/data/default_categories.dart';
+import '/core/utils/snackbar_utils.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});

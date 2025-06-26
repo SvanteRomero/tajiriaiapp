@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:tajiri_ai/core/models/account_model.dart';
-import '../core/models/transaction_model.dart';
+import '/core/models/transaction_model.dart';
 import 'package:logging/logging.dart';
-import '../core/utils/snackbar_utils.dart';
-import '../core/services/firestore_service.dart';
-import 'package:tajiri_ai/core/models/user_category_model.dart';
-import 'package:tajiri_ai/screens/manage_categories_page.dart';
+import '/core/utils/snackbar_utils.dart';
+import '/core/services/firestore_service.dart';
+import '/core/models/user_category_model.dart';
+import 'manage_categories_page.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final User user;
@@ -24,7 +24,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   final _amountController = TextEditingController();
   TransactionType _selectedType = TransactionType.expense;
   DateTime _selectedDate = DateTime.now();
-  String? _selectedAccountId;
+  Account? _selectedFromAccount;
+  Account? _selectedToAccount;
   String? _selectedCategory;
   bool _isLoading = false;
   final Logger _logger = Logger('AddTransactionPage');
@@ -51,17 +52,39 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
     setState(() => _isLoading = true);
 
-    final transaction = TransactionModel(
-      accountId: _selectedAccountId!,
-      description: _descriptionController.text,
-      amount: double.parse(_amountController.text),
-      date: _selectedDate,
-      type: _selectedType,
-      category: _selectedCategory!,
-    );
-
     try {
-      await _firestoreService.addTransaction(widget.user.uid, transaction);
+      if (_selectedType == TransactionType.transfer) {
+        if (_selectedFromAccount == null || _selectedToAccount == null) {
+          showCustomSnackbar(context, 'Please select both accounts.', type: SnackbarType.error);
+          return;
+        }
+        if (_selectedFromAccount!.currency != _selectedToAccount!.currency) {
+          showCustomSnackbar(context, 'Accounts must have the same currency for transfers.', type: SnackbarType.error);
+          return;
+        }
+        await _firestoreService.addTransferTransaction(
+          widget.user.uid,
+          _selectedFromAccount!.id,
+          _selectedToAccount!.id,
+          double.parse(_amountController.text),
+          _descriptionController.text,
+        );
+      } else {
+        if (_selectedFromAccount == null || _selectedCategory == null) {
+          showCustomSnackbar(context, 'Please select an account and category.', type: SnackbarType.error);
+          return;
+        }
+        final transaction = TransactionModel(
+          accountId: _selectedFromAccount!.id,
+          description: _descriptionController.text,
+          amount: double.parse(_amountController.text),
+          date: _selectedDate,
+          type: _selectedType,
+          category: _selectedCategory!,
+          currency: _selectedFromAccount!.currency,
+        );
+        await _firestoreService.addTransaction(widget.user.uid, transaction);
+      }
       if (mounted) {
         showCustomSnackbar(context, 'Transaction saved successfully!');
         Navigator.of(context).pop();
@@ -69,9 +92,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     } catch (e, s) {
       _logger.severe('Failed to save transaction', e, s);
       if (mounted) {
-        showCustomSnackbar(
-            context, 'Failed to save transaction. Please try again.',
-            type: SnackbarType.error);
+        showCustomSnackbar(context, 'Error: ${e.toString()}', type: SnackbarType.error);
       }
     } finally {
       if (mounted) {
@@ -93,7 +114,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             children: [
               _buildTypeSelector(),
               const SizedBox(height: 20),
-              _buildAccountSelector(),
+              _buildAccountSelectors(),
               const SizedBox(height: 16),
               TextFormField(
                   controller: _descriptionController,
@@ -103,8 +124,12 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _amountController,
-                decoration:
-                    const InputDecoration(labelText: "Amount", prefixText: "\$ "),
+                decoration: InputDecoration(
+                  labelText: "Amount", 
+                  prefixText: _selectedFromAccount != null 
+                    ? '${_selectedFromAccount!.currency} ' 
+                    : '\$ '
+                ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
@@ -115,8 +140,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              _buildCategorySelector(),
+              if (_selectedType != TransactionType.transfer) ...[
+                const SizedBox(height: 16),
+                _buildCategorySelector(),
+              ],
               const SizedBox(height: 16),
               _buildDateSelector(),
               const SizedBox(height: 30),
@@ -136,7 +163,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     );
   }
 
-  Widget _buildAccountSelector() {
+  Widget _buildAccountSelectors() {
     return StreamBuilder<List<Account>>(
       stream: _firestoreService.getAccounts(widget.user.uid),
       builder: (context, snapshot) {
@@ -145,28 +172,50 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         }
         var accounts = snapshot.data!;
         if (accounts.isEmpty) {
-          return const Text(
-              "Please create an account first on your profile page.");
+          return const Text("Please create an account first on your profile page.");
         }
-        return DropdownButtonFormField<String>(
-          value: _selectedAccountId,
-          hint: const Text("Select Account"),
-          decoration: const InputDecoration(labelText: "Account"),
-          items: accounts.map((Account account) {
-            return DropdownMenuItem<String>(
-              value: account.id,
-              child: Text(account.name),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() {
-              _selectedAccountId = newValue;
-            });
-          },
-          validator: (value) =>
-              value == null ? 'Please select an account' : null,
-        );
+
+        List<Account> toAccounts = (_selectedFromAccount != null)
+            ? accounts.where((acc) => acc.currency == _selectedFromAccount!.currency && acc.id != _selectedFromAccount!.id).toList()
+            : [];
+
+        if (_selectedType == TransactionType.transfer) {
+          return Row(
+            children: [
+              Expanded(child: _buildAccountDropdown(accounts, true)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildAccountDropdown(toAccounts, false)),
+            ],
+          );
+        } else {
+          return _buildAccountDropdown(accounts, true);
+        }
       },
+    );
+  }
+
+  Widget _buildAccountDropdown(List<Account> accounts, bool isFrom) {
+    return DropdownButtonFormField<Account>(
+      value: isFrom ? _selectedFromAccount : _selectedToAccount,
+      hint: Text(isFrom ? "From Account" : "To Account"),
+      decoration: InputDecoration(labelText: isFrom ? "From" : "To"),
+      items: accounts.map((Account account) {
+        return DropdownMenuItem<Account>(
+          value: account,
+          child: Text('${account.name} (${account.currency})'),
+        );
+      }).toList(),
+      onChanged: (Account? newValue) {
+        setState(() {
+          if (isFrom) {
+            _selectedFromAccount = newValue;
+            _selectedToAccount = null; // Reset "to" account when "from" changes
+          } else {
+            _selectedToAccount = newValue;
+          }
+        });
+      },
+      validator: (value) => value == null ? 'Please select an account' : null,
     );
   }
 
@@ -185,6 +234,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             value: TransactionType.income,
             label: Text("Income"),
             icon: Icon(Icons.arrow_upward)),
+        ButtonSegment(
+            value: TransactionType.transfer,
+            label: Text("Transfer"),
+            icon: Icon(Icons.swap_horiz)),
       ],
       selected: {_selectedType},
       onSelectionChanged: (Set<TransactionType> newSelection) {
@@ -195,7 +248,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       },
     );
   }
-
+  
   Future<void> _showCategoryPickerDialog() async {
     final selectedCategory = await showDialog<UserCategory>(
       context: context,
@@ -300,7 +353,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   Widget _buildCategorySelector() {
     return FormField<String>(
       validator: (value) {
-        if (_selectedCategory == null) {
+        if (_selectedType != TransactionType.transfer &&
+            _selectedCategory == null) {
           return 'Please select a category';
         }
         return null;

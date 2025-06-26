@@ -1,12 +1,13 @@
 // lib/screens/manage_categories_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:tajiri_ai/core/models/user_category_model.dart';
-import 'package:tajiri_ai/core/models/transaction_model.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
-import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import '/core/models/user_category_model.dart';
+import '/core/models/transaction_model.dart';
+import '/core/services/firestore_service.dart';
+import '/core/utils/snackbar_utils.dart';
+
 
 class ManageCategoriesPage extends StatefulWidget {
   final User user;

@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:tajiri_ai/core/models/goal_model.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
+import '/core/models/goal_model.dart';
+import '/core/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import CloudFirestore for Timestamp
-import 'package:tajiri_ai/screens/edit_goal_page.dart'; // Import EditGoalPage
+import '/screens/edit_goal_page.dart'; // Import EditGoalPage
 
 // Daily Log model for subcollection
 class DailyLog {

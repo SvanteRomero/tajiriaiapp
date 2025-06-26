@@ -4,10 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:tajiri_ai/core/models/account_model.dart';
-import '../core/models/transaction_model.dart';
-import '../core/services/firestore_service.dart';
-import '../core/utils/snackbar_utils.dart';
+import '/core/models/account_model.dart';
+import '/core/models/transaction_model.dart';
+import '/core/services/firestore_service.dart';
+import '/core/utils/snackbar_utils.dart';
 import 'edit_transaction_page.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -93,6 +93,7 @@ class _DashboardPageState extends State<DashboardPage> {
         final transactions =
             snapshot.data!['transactions'] as List<TransactionModel>;
         final accounts = snapshot.data!['accounts'] as List<Account>;
+        final accountMap = {for (var acc in accounts) acc.id: acc};
 
         if (transactions.isEmpty) {
           return Center(
@@ -124,7 +125,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
         return Column(
           children: [
-            _buildBalanceCard(totalBalance, totalIncome, totalExpense),
+            _buildBalanceCard(totalBalance, totalIncome, totalExpense, accounts.isNotEmpty ? accounts.first.currency : '\$'),
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -141,6 +142,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 itemCount: transactions.length,
                 itemBuilder: (context, index) {
                   final transaction = transactions[index];
+                  final account = accountMap[transaction.accountId];
                   return Dismissible(
                     key: ValueKey(transaction.id),
                     background: Container(
@@ -163,7 +165,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         return await _confirmAndDeleteTransaction(transaction);
                       }
                     },
-                    child: _buildTransactionTile(transaction),
+                    child: _buildTransactionTile(transaction, account),
                   );
                 },
               ),
@@ -175,7 +177,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildBalanceCard(
-      double balance, double income, double expense) {
+      double balance, double income, double expense, String currencySymbol) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),
@@ -200,7 +202,7 @@ class _DashboardPageState extends State<DashboardPage> {
           Text("Total Balance",
               style: GoogleFonts.poppins(color: Colors.white70)),
           Text(
-            NumberFormat.currency(symbol: '\$').format(balance),
+            NumberFormat.currency(symbol: currencySymbol).format(balance),
             style: GoogleFonts.poppins(
                 color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
           ),
@@ -209,9 +211,9 @@ class _DashboardPageState extends State<DashboardPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildIncomeExpenseRow(
-                  Icons.arrow_upward, "Income", income, Colors.greenAccent),
+                  Icons.arrow_upward, "Income", income, Colors.greenAccent, currencySymbol),
               _buildIncomeExpenseRow(
-                  Icons.arrow_downward, "Expense", expense, Colors.redAccent),
+                  Icons.arrow_downward, "Expense", expense, Colors.redAccent, currencySymbol),
             ],
           )
         ],
@@ -220,7 +222,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildIncomeExpenseRow(
-      IconData icon, String label, double amount, Color color) {
+      IconData icon, String label, double amount, Color color, String currencySymbol) {
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
@@ -231,7 +233,7 @@ class _DashboardPageState extends State<DashboardPage> {
             Text(label,
                 style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
             Text(
-              NumberFormat.currency(symbol: '\$').format(amount),
+              NumberFormat.currency(symbol: currencySymbol).format(amount),
               style: GoogleFonts.poppins(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
@@ -243,10 +245,11 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildTransactionTile(TransactionModel transaction) {
+  Widget _buildTransactionTile(TransactionModel transaction, Account? account) {
     final isExpense = transaction.type == TransactionType.expense;
     final color = isExpense ? Colors.red.shade400 : Colors.green.shade400;
     final sign = isExpense ? '-' : '+';
+    final currencySymbol = account?.currency ?? '\$';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -261,7 +264,7 @@ class _DashboardPageState extends State<DashboardPage> {
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         subtitle: Text(DateFormat.yMMMd().format(transaction.date)),
         trailing: Text(
-          "$sign ${NumberFormat.currency(symbol: '\$').format(transaction.amount)}",
+          "$sign ${NumberFormat.currency(symbol: currencySymbol).format(transaction.amount)}",
           style: GoogleFonts.poppins(
             color: color,
             fontWeight: FontWeight.bold,

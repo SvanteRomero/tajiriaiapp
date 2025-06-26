@@ -4,9 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
-import 'package:tajiri_ai/core/models/transaction_model.dart';
-import 'package:tajiri_ai/core/models/user_category_model.dart';
+import '/core/services/firestore_service.dart';
+import '/core/models/transaction_model.dart';
+import '/core/models/user_category_model.dart';
 
 class CategoryData {
   final String category;

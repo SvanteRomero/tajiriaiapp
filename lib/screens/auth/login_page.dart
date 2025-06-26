@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:tajiri_ai/screens/auth/register_page.dart';
-import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
+import '/screens/auth/register_page.dart';
+import '/core/utils/snackbar_utils.dart';
 
 
 class LoginPage extends StatefulWidget {

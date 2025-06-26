@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:tajiri_ai/core/models/goal_model.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
-import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
+import '/core/models/goal_model.dart';
+import '/core/services/firestore_service.dart';
+import '/core/utils/snackbar_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class EditGoalPage extends StatefulWidget {

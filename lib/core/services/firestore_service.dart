@@ -1,11 +1,11 @@
 // lib/core/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:tajiri_ai/core/models/account_model.dart';
-import 'package:tajiri_ai/core/models/budget_model.dart';
-import 'package:tajiri_ai/core/models/transaction_model.dart';
-import 'package:tajiri_ai/core/models/goal_model.dart';
-import 'package:tajiri_ai/core/models/user_category_model.dart'; // NEW: Import UserCategory
-import 'package:tajiri_ai/screens/goal_details_page.dart';
+import '/core/models/account_model.dart';
+import '/core/models/budget_model.dart';
+import '/core/models/transaction_model.dart';
+import '/core/models/goal_model.dart';
+import '/core/models/user_category_model.dart';
+import '/screens/goal_details_page.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -21,13 +21,27 @@ class FirestoreService {
             snapshot.docs.map((doc) => Account.fromFirestore(doc)).toList());
   }
 
-  // Method to add a new account
-  Future<void> addAccount(String userId, Account account) {
-    return _db
-        .collection('users')
-        .doc(userId)
-        .collection('accounts')
-        .add(account.toJson());
+  // UPDATED: Method to add a new account with currency and unique name check
+  Future<void> addAccount(String userId, Account account) async {
+    final accountsRef = _db.collection('users').doc(userId).collection('accounts');
+    
+    // Check if an account with the same name exists
+    final querySnapshot = await accountsRef.where('name', isEqualTo: account.name).get();
+
+    String finalName = account.name;
+    // If docs with the same name are found, append the currency code
+    if (querySnapshot.docs.isNotEmpty) {
+      finalName = '${account.name} (${account.currency})';
+    }
+
+    final newAccount = Account(
+      id: '', // Firestore will generate this
+      name: finalName,
+      balance: account.balance,
+      currency: account.currency,
+    );
+    
+    await accountsRef.add(newAccount.toJson());
   }
 
   // NEW: Method to update an existing account
@@ -50,7 +64,7 @@ class FirestoreService {
         .delete();
   }
 
-  // Method to add a transaction and update account balance atomically
+  // UPDATED: Method to add a transaction and update account balance atomically
   Future<void> addTransaction(String userId, TransactionModel transaction) {
     final transactionRef = _db
         .collection('users')
@@ -81,8 +95,69 @@ class FirestoreService {
       // Update the account balance
       firestoreTransaction.update(accountRef, {'balance': newBalance});
 
-      // Add the new transaction
+      // Add the new transaction with currency
       firestoreTransaction.set(transactionRef, transaction.toJson());
+    });
+  }
+
+  // UPDATED: Method to handle transfers between accounts of the same currency
+  Future<void> addTransferTransaction(String userId, String fromAccountId,
+      String toAccountId, double amount, String description) {
+    final fromAccountRef =
+        _db.collection('users').doc(userId).collection('accounts').doc(fromAccountId);
+    final toAccountRef =
+        _db.collection('users').doc(userId).collection('accounts').doc(toAccountId);
+    final debitTransactionRef =
+        _db.collection('users').doc(userId).collection('transactions').doc();
+    final creditTransactionRef =
+        _db.collection('users').doc(userId).collection('transactions').doc();
+
+    return _db.runTransaction((firestoreTransaction) async {
+      // Get account documents
+      final fromAccountDoc = await firestoreTransaction.get(fromAccountRef);
+      final toAccountDoc = await firestoreTransaction.get(toAccountRef);
+
+      if (!fromAccountDoc.exists || !toAccountDoc.exists) {
+        throw Exception("One or both accounts not found!");
+      }
+      
+      final fromAccount = Account.fromFirestore(fromAccountDoc);
+      final toAccount = Account.fromFirestore(toAccountDoc);
+
+      if (fromAccount.currency != toAccount.currency) {
+        throw Exception("Currency must be the same for transfers.");
+      }
+
+      // Update balances
+      firestoreTransaction.update(fromAccountRef, {'balance': fromAccount.balance - amount});
+      firestoreTransaction.update(toAccountRef, {'balance': toAccount.balance + amount});
+
+      // Create transactions
+      final debitTransaction = TransactionModel(
+        id: debitTransactionRef.id,
+        accountId: fromAccountId,
+        description: 'Transfer to ${toAccount.name}: $description',
+        amount: amount,
+        date: DateTime.now(),
+        type: TransactionType.expense, // Representing money leaving the account
+        category: 'Transfer',
+        currency: fromAccount.currency,
+      );
+
+      final creditTransaction = TransactionModel(
+        id: creditTransactionRef.id,
+        accountId: toAccountId,
+        description:
+            'Transfer from ${fromAccount.name}: $description',
+        amount: amount,
+        date: DateTime.now(),
+        type: TransactionType.income, // Representing money entering the account
+        category: 'Transfer',
+        currency: toAccount.currency,
+      );
+
+      firestoreTransaction.set(debitTransactionRef, debitTransaction.toJson());
+      firestoreTransaction.set(creditTransactionRef, creditTransaction.toJson());
     });
   }
 

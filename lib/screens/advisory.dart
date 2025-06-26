@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../features/advisor_chat/viewmodel/advisor_chat_viewmodel.dart';
-import '../core/models/message_model.dart';
+import '/features/advisor_chat/viewmodel/advisor_chat_viewmodel.dart';
+import '/core/models/message_model.dart';
 
 class AdvisoryPage extends StatelessWidget {
   final User user;

@@ -1,7 +1,7 @@
 // lib/core/data/default_categories.dart
 import 'package:flutter/material.dart';
-import 'package:tajiri_ai/core/models/transaction_model.dart';
-import 'package:tajiri_ai/core/models/user_category_model.dart';
+import '/core/models/transaction_model.dart';
+import '/core/models/user_category_model.dart';
 
 List<UserCategory> defaultCategories = [
   // Income Categories

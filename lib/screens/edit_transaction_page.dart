@@ -2,16 +2,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:tajiri_ai/core/models/account_model.dart';
-import 'package:tajiri_ai/core/models/transaction_model.dart';
+import '/core/models/account_model.dart';
+import '/core/models/transaction_model.dart';
 import 'package:logging/logging.dart';
-import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
-import 'package:tajiri_ai/core/services/firestore_service.dart';
-import 'package:tajiri_ai/core/models/user_category_model.dart'; // NEW: Import UserCategory
+import '/core/utils/snackbar_utils.dart';
+import '/core/services/firestore_service.dart';
+import '/core/models/user_category_model.dart';
 
 class EditTransactionPage extends StatefulWidget {
   final User user;
-  final TransactionModel transaction; // The transaction to be edited
+  final TransactionModel transaction;
 
   const EditTransactionPage({Key? key, required this.user, required this.transaction}) : super(key: key);
 
@@ -25,8 +25,8 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   late TextEditingController _amountController;
   late TransactionType _selectedType;
   late DateTime _selectedDate;
-  String? _selectedAccountId;
-  String? _selectedCategory; // Make nullable initially for dynamic categories
+  Account? _selectedAccount;
+  String? _selectedCategory;
   bool _isLoading = false;
   final Logger _logger = Logger('EditTransactionPage');
   final FirestoreService _firestoreService = FirestoreService();
@@ -38,8 +38,16 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     _amountController = TextEditingController(text: widget.transaction.amount.toStringAsFixed(2));
     _selectedType = widget.transaction.type;
     _selectedDate = widget.transaction.date;
-    _selectedAccountId = widget.transaction.accountId;
-    _selectedCategory = widget.transaction.category; // Set initial category from transaction
+    _selectedCategory = widget.transaction.category;
+
+    // Fetch the account to get the currency
+    _firestoreService.getAccounts(widget.user.uid).first.then((accounts) {
+      if (mounted) {
+        setState(() {
+          _selectedAccount = accounts.firstWhere((acc) => acc.id == widget.transaction.accountId);
+        });
+      }
+    });
   }
 
   @override
@@ -67,7 +75,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    if (_selectedAccountId == null) {
+    if (_selectedAccount == null) {
       showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
       return;
     }
@@ -80,12 +88,13 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
     final updatedTransaction = TransactionModel(
       id: widget.transaction.id,
-      accountId: _selectedAccountId!,
+      accountId: _selectedAccount!.id,
       description: _descriptionController.text,
       amount: double.parse(_amountController.text),
       date: _selectedDate,
       type: _selectedType,
       category: _selectedCategory!,
+      currency: _selectedAccount!.currency,
     );
 
     try {
@@ -174,7 +183,10 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _amountController,
-                decoration: const InputDecoration(labelText: "Amount", prefixText: "\$ "),
+                decoration: InputDecoration(
+                  labelText: "Amount", 
+                  prefixText: _selectedAccount != null ? '${_selectedAccount!.currency} ' : '\$ '
+                ),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value!.isEmpty) return 'Please enter an amount';
@@ -183,7 +195,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildCategorySelector(), // Updated to be dynamic
+              _buildCategorySelector(),
               const SizedBox(height: 16),
               _buildDateSelector(),
               const SizedBox(height: 30),
@@ -212,22 +224,25 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         if (accounts.isEmpty) {
           return const Text("Please create an account first on your profile page.");
         }
-        if (_selectedAccountId != null && !accounts.any((acc) => acc.id == _selectedAccountId)) {
-          _selectedAccountId = null;
+        
+        // This ensures the dropdown doesn't crash if the account is deleted
+        if (_selectedAccount != null && !accounts.contains(_selectedAccount)) {
+          _selectedAccount = null;
         }
-        return DropdownButtonFormField<String>(
-          value: _selectedAccountId,
+
+        return DropdownButtonFormField<Account>(
+          value: _selectedAccount,
           hint: const Text("Select Account"),
           decoration: const InputDecoration(labelText: "Account"),
           items: accounts.map((Account account) {
-            return DropdownMenuItem<String>(
-              value: account.id,
+            return DropdownMenuItem<Account>(
+              value: account,
               child: Text(account.name),
             );
           }).toList(),
-          onChanged: (String? newValue) {
+          onChanged: (Account? newValue) {
             setState(() {
-              _selectedAccountId = newValue;
+              _selectedAccount = newValue;
             });
           },
           validator: (value) => value == null ? 'Please select an account' : null,
@@ -250,18 +265,17 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       onSelectionChanged: (Set<TransactionType> newSelection) {
         setState(() {
           _selectedType = newSelection.first;
-          _selectedCategory = 'Other'; // Reset category to 'Other' when type changes
+          _selectedCategory = 'Other';
         });
       },
     );
   }
 
-  // Updated to dynamically fetch user categories
   Widget _buildCategorySelector() {
     return StreamBuilder<List<UserCategory>>(
       stream: _firestoreService.getUserCategories(widget.user.uid, type: _selectedType),
       builder: (context, snapshot) {
-        List<String> categories = ['Other']; // Always include 'Other' as a fallback
+        List<String> categories = ['Other'];
 
         if (snapshot.hasData) {
           categories.addAll(snapshot.data!.map((e) => e.name).toList());

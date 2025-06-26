@@ -4,11 +4,13 @@ class Account {
   final String id;
   final String name;
   final double balance;
+  final String currency;
 
   Account({
     required this.id,
     required this.name,
     required this.balance,
+    required this.currency,
   });
 
   factory Account.fromFirestore(DocumentSnapshot doc) {
@@ -17,6 +19,7 @@ class Account {
       id: doc.id,
       name: data['name'] ?? '',
       balance: (data['balance'] as num?)?.toDouble() ?? 0.0,
+      currency: data['currency'] ?? 'USD',
     );
   }
 
@@ -24,6 +27,18 @@ class Account {
     return {
       'name': name,
       'balance': balance,
+      'currency': currency,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+  
+    return other is Account &&
+      other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
