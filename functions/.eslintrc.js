@@ -14,14 +14,14 @@ module.exports = {
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
-    // This line is the key fix. It tells ESLint to look for tsconfig.json
-    // in the CURRENT directory (functions/), not the project root.
-    project: ["tsconfig.json", "tsconfig.dev.json"],
+    project: ["./tsconfig.json", "./tsconfig.dev.json"],
     sourceType: "module",
-    tsconfigRootDir: __dirname, // Explicitly set the root directory for tsconfig
+    tsconfigRootDir: __dirname,
   },
+  // --- UPDATED: Add .eslintrc.js to the ignore list ---
   ignorePatterns: [
-    "/lib/**/*", // Ignore compiled JavaScript files
+    "/lib/**/*", // Ignore compiled files
+    ".eslintrc.js", // Add this line to ignore this file
   ],
   plugins: [
     "@typescript-eslint",
@@ -31,6 +31,6 @@ module.exports = {
     "quotes": ["error", "double"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
-    "max-len": ["error", {"code": 120}], // Optional: Increase max line length
+    "max-len": ["error", {"code": 120}],
   },
 };

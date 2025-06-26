@@ -1,4 +1,7 @@
 /* eslint-disable linebreak-style */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/* eslint-disable require-jsdoc */
 /* eslint-disable max-len */
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
@@ -7,11 +10,14 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import {GoogleAuth} from "google-auth-library";
 import {VertexAI} from "@google-cloud/vertexai";
 
-// Initialize Firebase Admin SDK
 admin.initializeApp();
 const db = admin.firestore();
 
 functions.params.defineString("GEMINI_API_KEY");
+
+// ===============================================================================================
+// Internal Helper Functions for Core Logic
+// ===============================================================================================
 
 /**
  * A helper function to determine a date range from text.
@@ -53,109 +59,16 @@ function getDateRangeFromText(text: string): {startDate: Date, endDate: Date, ti
   return {startDate, endDate, timeFrameText};
 }
 
-// Function specifically for the AI Advisor Chat
-export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-  }
-  const userId = request.auth.uid; // Used to fetch user-specific data
-  const userMessage = request.data.message as string;
-
-  if (!userMessage) {
-    throw new HttpsError("invalid-argument", "The function must be called with a 'message' argument.");
-  }
-
-  try {
-    // --- FETCH USER-SPECIFIC FINANCIAL DATA ---
-    const {startDate, endDate, timeFrameText} = getDateRangeFromText(userMessage);
-
-    let expenseQuery: admin.firestore.Query = db
-      .collection("users").doc(userId).collection("transactions")
-      .where("type", "==", "expense");
-
-    if (startDate.getTime() > 0) {
-      expenseQuery = expenseQuery.where("date", ">=", startDate);
-    }
-    expenseQuery = expenseQuery.where("date", "<=", endDate).orderBy("date", "desc");
-
-    const expensesSnapshot = await expenseQuery.get();
-    const expenses = expensesSnapshot.docs.map((doc) => doc.data());
-
-    const expenseContext = expenses.length > 0 ?
-      expenses
-        .map((exp) => `- ${exp.description || exp.category}: ${exp.currency} ${exp.amount.toFixed(2)} on ${new Date(exp.date._seconds * 1000).toLocaleDateString()}`)
-        .join("\n") : "No expenses were found for this period.";
-
-    const goalsSnapshot = await db.collection("users").doc(userId).collection("goals").get();
-    const goals = goalsSnapshot.docs.map((doc) => doc.data());
-
-    const goalsContext = goals.length > 0 ?
-      goals
-        .map((goal) => `- Goal: '${goal.goal_name}', Progress: ${goal.saved_amount.toFixed(2)} / ${goal.target_amount.toFixed(2)}`)
-        .join("\n") : "No active savings goals found.";
-
-
-    // --- CONSTRUCT THE PROMPT ---
-    const prompt = `
-      You are a friendly and helpful AI financial advisor named Tajiri for an expense tracker app.
-      The current date is ${new Date().toLocaleDateString()}.
-      A user is asking for advice. Your tone should be encouraging and non-judgmental.
-
-      USER'S QUESTION: "${userMessage}"
-      
-      Based on the user's question, I have retrieved the following financial data for this user:
-
-      1. SPENDING DATA ${timeFrameText}:
-      ${expenseContext}
-
-      2. ACTIVE SAVINGS GOALS:
-      ${goalsContext}
-
-      Based on ALL of this data (spending and goals), provide a concise, helpful, and actionable response (max 3-4 sentences).
-      Connect their spending habits to their goal progress where relevant. For example, if they ask about saving money, you can suggest cutting back on a high-spending category to help them reach their goals faster.
-      If no data was found, state that. If their question is not related to finance, politely decline to answer.
-    `;
-
-    // --- CALL THE GEMINI API ---
-    const auth = new GoogleAuth({scopes: "https://www.googleapis.com/auth/cloud-platform"});
-    const projectId = await auth.getProjectId();
-    const location = "us-central1";
-    const vertexAI = new VertexAI({project: projectId, location: location});
-
-    const generativeModel = vertexAI.preview.getGenerativeModel({
-      model: "gemini-2.5-pro",
-    });
-
-    const result = await generativeModel.generateContent(prompt);
-    const response = result.response;
-
-    if (!response.candidates || response.candidates.length === 0) {
-      throw new HttpsError("internal", "No response from AI model.");
-    }
-
-    const aiResponseText = response.candidates[0].content.parts[0]?.text;
-
-    return {reply: aiResponseText ?? "Sorry, I couldn't process that. Could you try rephrasing?"};
-  } catch (error) {
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    console.error("Error in getAdvisoryMessage:", error);
-    throw new HttpsError("internal", "An error occurred while getting your advice.");
-  }
-});
-
-
-// Specific callable functions for direct UI actions
-export const createTransaction = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-  }
-  const userId = request.auth.uid;
-  const {description, amount, type, category, accountId, currency} = request.data;
-
+/**
+ * Creates a new transaction in Firestore for a given user.
+ * @param {string} userId - The ID of the user.
+ * @param {any} data - The transaction data.
+ * @return {Promise<{success: boolean, message: string}>} A confirmation message.
+ */
+async function _createTransaction(userId: string, data: any) {
+  const {description, amount, type, category, accountId, currency} = data;
   if (!description || !amount || !type || !category || !accountId || !currency) {
-    throw new HttpsError("invalid-argument", "Missing required fields.");
+    throw new HttpsError("invalid-argument", "Missing required fields for transaction.");
   }
 
   const transaction = {
@@ -170,6 +83,153 @@ export const createTransaction = onCall(async (request: CallableRequest) => {
 
   await db.collection("users").doc(userId).collection("transactions").add(transaction);
   return {success: true, message: "Transaction created successfully."};
+}
+
+/**
+ * Creates a new goal in Firestore for a given user.
+ * @param {string} userId - The ID of the user.
+ * @param {any} data - The goal data.
+ * @return {Promise<{success: boolean, message: string}>} A confirmation message.
+ */
+async function _createGoal(userId: string, data: any) {
+  const {goalName, targetAmount, endDate, dailyLimit} = data;
+
+  if (!goalName || !targetAmount || !endDate || !dailyLimit) {
+    throw new HttpsError("invalid-argument", "Missing required fields for goal: goalName, targetAmount, endDate, dailyLimit.");
+  }
+
+  const goal = {
+    goal_name: goalName,
+    target_amount: Number(targetAmount),
+    saved_amount: 0,
+    start_date: admin.firestore.Timestamp.now(),
+    end_date: admin.firestore.Timestamp.fromDate(new Date(endDate)),
+    daily_limit: Number(dailyLimit),
+    status: "active",
+    created_at: admin.firestore.Timestamp.now(),
+  };
+
+  await db.collection("users").doc(userId).collection("goals").add(goal);
+  return {success: true, message: "Goal created successfully."};
+}
+
+
+/**
+ * Main function for the AI Advisor Chat
+ * This function now uses Gemini to determine the user's intent.
+ */
+export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const userMessage = request.data.message as string;
+
+  if (!userMessage) {
+    throw new HttpsError("invalid-argument", "The function must be called with a 'message' argument.");
+  }
+
+  // --- Initialize Vertex AI ---
+  const auth = new GoogleAuth({scopes: "https://www.googleapis.com/auth/cloud-platform"});
+  const projectId = await auth.getProjectId();
+  const location = "us-central1";
+  const vertexAI = new VertexAI({project: projectId, location: location});
+  const generativeModel = vertexAI.preview.getGenerativeModel({model: "gemini-2.5-pro"});
+
+  // --- Intent Recognition Prompt ---
+  const intentPrompt = `
+    Analyze the user's message to determine their intent.
+    Possible intents are: 'create_transaction', 'create_goal', or 'chat'.
+    If the intent is 'create_transaction', extract the 'amount' (as a number) and 'description'.
+    If the intent is 'create_goal', extract 'goalName', 'targetAmount', 'endDate', and 'dailyLimit'.
+
+    User Message: "${userMessage}"
+
+    Respond in JSON format. For example:
+    For a transaction: {"intent": "create_transaction", "amount": 5000, "description": "for lunch"}
+    For a goal: {"intent": "create_goal", "goalName": "Zanzibar Trip", "targetAmount": 1000000, "endDate": "2025-12-31", "dailyLimit": 10000}
+    For anything else: {"intent": "chat"}
+  `;
+
+  try {
+    const intentResult = await generativeModel.generateContent(intentPrompt);
+    if (!intentResult.response.candidates || intentResult.response.candidates.length === 0) {
+      throw new HttpsError("internal", "No response from AI model for intent recognition.");
+    }
+
+    // --- FIX: Clean the response string before parsing ---
+    const rawIntentResponse = intentResult.response.candidates[0].content.parts[0].text;
+    const cleanIntentResponse = rawIntentResponse?.replace(/```json/g, "").replace(/```/g, "");
+
+    const intentData = JSON.parse(cleanIntentResponse ?? "{}");
+
+    // --- Execute Actions Based on Intent ---
+
+    if (intentData.intent === "create_transaction") {
+      const {amount, description} = intentData;
+      if (!amount || !description) {
+        return {reply: "I see you want to add a transaction, but I'm missing some details. Please tell me the amount and what it was for."};
+      }
+
+      const accountsSnapshot = await db.collection("users").doc(userId).collection("accounts").limit(1).get();
+      if (accountsSnapshot.empty) {
+        return {reply: "I can't add a transaction because you don't have an account yet. Please add an account first."};
+      }
+      const account = accountsSnapshot.docs[0].data();
+      const accountId = accountsSnapshot.docs[0].id;
+
+      await _createTransaction(userId, {
+        description,
+        amount,
+        type: "expense",
+        category: "General",
+        accountId,
+        currency: account.currency,
+      });
+
+      return {reply: `Transaction of ${account.currency} ${amount} for "${description}" has been added.`};
+    }
+
+    if (intentData.intent === "create_goal") {
+      await _createGoal(userId, intentData);
+      return {reply: `I've created a new goal for you: "${intentData.goalName}" with a target of ${intentData.targetAmount}.`};
+    }
+
+
+    // --- Default to Advisory Chat ---
+    const chatPrompt = `
+        You are a friendly financial advisor named Tajiri.
+        User's question: "${userMessage}"
+        Provide a concise and helpful response (max 3-4 sentences).
+      `;
+    const chatResult = await generativeModel.generateContent(chatPrompt);
+    if (!chatResult.response.candidates || chatResult.response.candidates.length === 0) {
+      throw new HttpsError("internal", "No response from AI model for chat.");
+    }
+    const chatResponse = chatResult.response.candidates[0].content.parts[0].text;
+
+    return {reply: chatResponse ?? "I'm not sure how to respond to that. Can you try rephrasing?"};
+  } catch (error) {
+    console.error("Error in getAdvisoryMessage:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "An error occurred while processing your request.");
+  }
+});
+
+
+// ===============================================================================================
+// --- Callable Function Wrappers (No Change Needed) ---
+// ===============================================================================================
+
+export const createTransaction = onCall(async (request: CallableRequest) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  return _createTransaction(request.auth.uid, request.data);
+});
+
+export const createGoal = onCall(async (request: CallableRequest) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  return _createGoal(request.auth.uid, request.data);
 });
 
 export const getSpendingSummary = onCall(async (request: CallableRequest) => {
@@ -200,32 +260,6 @@ export const getSpendingSummary = onCall(async (request: CallableRequest) => {
   return {
     reply: `Here's your spending summary ${timeFrameText}:\n\n${summary}\n\nTotal: ${totalSpending.toFixed(2)}`,
   };
-});
-
-export const createGoal = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-  }
-  const userId = request.auth.uid;
-  const {goalName, targetAmount, endDate, dailyLimit} = request.data;
-
-  if (!goalName || !targetAmount || !endDate || !dailyLimit) {
-    throw new HttpsError("invalid-argument", "Missing required fields: goalName, targetAmount, endDate, dailyLimit.");
-  }
-
-  const goal = {
-    goal_name: goalName,
-    target_amount: Number(targetAmount),
-    saved_amount: 0,
-    start_date: admin.firestore.Timestamp.now(),
-    end_date: admin.firestore.Timestamp.fromDate(new Date(endDate)),
-    daily_limit: Number(dailyLimit),
-    status: "active",
-    created_at: admin.firestore.Timestamp.now(),
-  };
-
-  await db.collection("users").doc(userId).collection("goals").add(goal);
-  return {success: true, message: "Goal created successfully."};
 });
 
 export const createBudget = onCall(async (request: CallableRequest) => {

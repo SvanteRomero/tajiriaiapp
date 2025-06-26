@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "strict": true
   },
   "include": [
     "src"

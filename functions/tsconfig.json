@@ -1,9 +1,8 @@
-// File: functions/tsconfig.json
-// This file tells the TypeScript compiler how to convert your .ts files to .js files.
-
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "NodeNext",
+    "esModuleInterop": true,
+    "moduleResolution": "nodenext",
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "outDir": "lib",
