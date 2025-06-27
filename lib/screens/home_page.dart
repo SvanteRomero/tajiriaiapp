@@ -17,7 +17,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  static const List<String> _pageTitles = ["Dashboard", "Analytics", "My Goals", "AI Advisor"];
+  static const List<String> _pageTitles = ["Dashboard", "Analytics", "Goals and Budgets", "Tajiri Wangu"];
 
   void _onItemTapped(int index) {
     setState(() {

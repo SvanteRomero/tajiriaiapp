@@ -158,7 +158,6 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       throw new HttpsError("internal", "No response from AI model for intent recognition.");
     }
 
-    // --- FIX: Clean the response string before parsing ---
     const rawIntentResponse = intentResult.response.candidates[0].content.parts[0].text;
     const cleanIntentResponse = rawIntentResponse?.replace(/```json/g, "").replace(/```/g, "");
 
@@ -217,10 +216,6 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
   }
 });
 
-
-// ===============================================================================================
-// --- Callable Function Wrappers (No Change Needed) ---
-// ===============================================================================================
 
 export const createTransaction = onCall(async (request: CallableRequest) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
