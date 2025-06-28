@@ -1,4 +1,6 @@
 // lib/screens/my_goals_page.dart
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,6 +26,29 @@ class MyGoalsPage extends StatefulWidget {
 
 class _MyGoalsPageState extends State<MyGoalsPage> {
   final FirestoreService _firestoreService = FirestoreService();
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  bool _isOffline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Connectivity().checkConnectivity().then(_updateConnectionStatus);
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+   @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
+
+  void _updateConnectionStatus(List<ConnectivityResult> connectivityResult) {
+    if (!mounted) return;
+    setState(() {
+      _isOffline = connectivityResult.contains(ConnectivityResult.none);
+    });
+  }
 
   Future<void> _reactivateGoal(Goal goal) async {
     final reactivatedGoal = Goal(
@@ -57,20 +82,42 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
         _firestoreService.getUserCategories(widget.user.uid),
       ]),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
         }
-        if (!snapshot.hasData || snapshot.data == null) {
-          return const Center(child: Text("No data available."));
-        }
+        
+        final goals = (snapshot.data?[0] as List<Goal>?) ?? [];
+        final budgets = (snapshot.data?[1] as List<Budget>?) ?? [];
+        final transactions = (snapshot.data?[2] as List<TransactionModel>?) ?? [];
+        final categories = (snapshot.data?[3] as List<UserCategory>?) ?? [];
 
-        final goals = snapshot.data![0] as List<Goal>;
-        final budgets = snapshot.data![1] as List<Budget>;
-        final transactions = snapshot.data![2] as List<TransactionModel>;
-        final categories = snapshot.data![3] as List<UserCategory>;
+        if (_isOffline && goals.isEmpty && budgets.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_off_rounded,
+                      size: 80, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  Text("You are Offline",
+                      style: GoogleFonts.poppins(
+                          fontSize: 18, color: Colors.grey.shade600)),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Your goals and budgets will appear here once you're back online. You can still add new ones, which will be saved and synced later.",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         final activeGoals =
             goals.where((goal) => goal.status == GoalStatus.active).toList();

@@ -1,4 +1,6 @@
 // lib/screens/dashboard_page.dart
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,6 +22,31 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final FirestoreService _firestoreService = FirestoreService();
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  bool _isOffline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check initial connectivity and listen for changes
+    Connectivity().checkConnectivity().then(_updateConnectionStatus);
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
+
+  void _updateConnectionStatus(List<ConnectivityResult> connectivityResult) {
+    if (!mounted) return;
+    setState(() {
+      _isOffline = connectivityResult.contains(ConnectivityResult.none);
+    });
+  }
+
 
   Future<bool> _confirmAndDeleteTransaction(
       TransactionModel transaction) async {
@@ -80,20 +107,42 @@ class _DashboardPageState extends State<DashboardPage> {
             {'transactions': transactions, 'accounts': accounts},
       ),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
         }
-        if (!snapshot.hasData) {
-          return const Center(child: Text("No data available."));
-        }
 
         final transactions =
-            snapshot.data!['transactions'] as List<TransactionModel>;
-        final accounts = snapshot.data!['accounts'] as List<Account>;
-        final accountMap = {for (var acc in accounts) acc.id: acc};
+            (snapshot.data?['transactions'] as List<TransactionModel>?) ?? [];
+        final accounts = (snapshot.data?['accounts'] as List<Account>?) ?? [];
+
+        // Special UI for when offline with no cached data
+        if (_isOffline && transactions.isEmpty && accounts.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_off_rounded,
+                      size: 80, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  Text("You are Offline",
+                      style: GoogleFonts.poppins(
+                          fontSize: 18, color: Colors.grey.shade600)),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Your data will appear here once you're back online. You can still add new transactions, which will be saved and synced later.",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         if (transactions.isEmpty) {
           return Center(
@@ -113,6 +162,8 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           );
         }
+
+        final accountMap = {for (var acc in accounts) acc.id: acc};
 
         double totalBalance =
             accounts.fold(0.0, (sum, item) => sum + item.balance);

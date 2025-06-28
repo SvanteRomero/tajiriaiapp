@@ -60,7 +60,7 @@ function getDateRangeFromText(text: string): {startDate: Date, endDate: Date, ti
 }
 
 /**
- * Creates a new transaction in Firestore for a given user.
+ * Creates a new transaction in Firestore for a given user and updates the account balance.
  * @param {string} userId - The ID of the user.
  * @param {any} data - The transaction data.
  * @return {Promise<{success: boolean, message: string}>} A confirmation message.
@@ -71,19 +71,37 @@ async function _createTransaction(userId: string, data: any) {
     throw new HttpsError("invalid-argument", "Missing required fields for transaction.");
   }
 
-  const transaction = {
-    description,
-    amount: Number(amount),
-    type,
-    category,
-    accountId,
-    currency,
-    date: admin.firestore.Timestamp.now(),
-  };
+  const numericAmount = Number(amount);
+  const transactionRef = db.collection("users").doc(userId).collection("transactions").doc();
+  const accountRef = db.collection("users").doc(userId).collection("accounts").doc(accountId);
 
-  await db.collection("users").doc(userId).collection("transactions").add(transaction);
-  return {success: true, message: "Transaction created successfully."};
+  return db.runTransaction(async (firestoreTransaction) => {
+    const accountDoc = await firestoreTransaction.get(accountRef);
+    if (!accountDoc.exists) {
+      throw new HttpsError("not-found", "The specified account does not exist.");
+    }
+
+    const currentBalance = (accountDoc.data()?.balance || 0) as number;
+    const newBalance = type === "income" ? currentBalance + numericAmount : currentBalance - numericAmount;
+
+    firestoreTransaction.update(accountRef, {balance: newBalance});
+
+    const transactionData = {
+      description,
+      amount: numericAmount,
+      type,
+      category,
+      accountId,
+      currency,
+      date: admin.firestore.Timestamp.now(),
+    };
+
+    firestoreTransaction.set(transactionRef, transactionData);
+
+    return {success: true, message: "Transaction created and account balance updated."};
+  });
 }
+
 
 /**
  * Creates a new goal in Firestore for a given user.
@@ -139,17 +157,41 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
 
   // --- Intent Recognition Prompt ---
   const intentPrompt = `
-    Analyze the user's message to determine their intent.
-    Possible intents are: 'create_transaction', 'create_goal', or 'chat'.
-    If the intent is 'create_transaction', extract the 'amount' (as a number) and 'description'.
-    If the intent is 'create_goal', extract 'goalName', 'targetAmount', 'endDate', and 'dailyLimit'.
+  You are an intelligent financial assistant. Your goal is to understand the user's request and categorize it into one of the following intents: 'create_transaction', 'create_goal', 'get_spending_summary', or 'chat'.
 
-    User Message: "${userMessage}"
+  Analyze the user's message: "${userMessage}"
 
-    Respond in JSON format. For example:
-    For a transaction: {"intent": "create_transaction", "amount": 5000, "description": "for lunch"}
-    For a goal: {"intent": "create_goal", "goalName": "Zanzibar Trip", "targetAmount": 1000000, "endDate": "2025-12-31", "dailyLimit": 10000}
-    For anything else: {"intent": "chat"}
+  Follow these rules for intent recognition:
+  1.  **'create_transaction'**: The user wants to record a new expense or income.
+      -   Extract 'amount' (as a number) and 'description' (a string).
+      -   If the user mentions "spent," "paid," "bought," or similar words, the transaction 'type' is 'expense.'
+      -   If the user mentions "earned," "received," "got paid," or similar words, the 'type' is 'income.'
+      -   If the type is not specified, ask the user to clarify.
+
+  2.  **'create_goal'**: The user wants to set a new financial goal.
+      -   Extract 'goalName' (a string), 'targetAmount' (a number), 'endDate' (in YYYY-MM-DD format), and 'dailyLimit' (a number).
+      -   If any of these are missing, ask for the missing information.
+
+  3.  **'get_spending_summary'**: The user wants to see a summary of their spending.
+      -   Extract the 'timeFrame' (e.g., "this week," "last month," "today").
+      -   If no time frame is mentioned, default to "this month."
+
+  4.  **'chat'**: If the user's request does not fit any of the above, classify it as a general chat.
+
+  Respond in JSON format only.
+
+  Examples:
+  -   User: "I spent 5000 on lunch"
+      Response: {"intent": "create_transaction", "amount": 5000, "description": "lunch", "type": "expense"}
+
+  -   User: "I want to save for a new car. The goal is 2,000,000 by the end of next year. My daily spending limit is 15,000"
+      Response: {"intent": "create_goal", "goalName": "New Car", "targetAmount": 2000000, "endDate": "2025-12-31", "dailyLimit": 15000}
+
+  -   User: "Show me my spending for last week"
+      Response: {"intent": "get_spending_summary", "timeFrame": "last week"}
+
+  -   User: "What's the best way to save money?"
+      Response: {"intent": "chat"}
   `;
 
   try {
@@ -166,9 +208,9 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
     // --- Execute Actions Based on Intent ---
 
     if (intentData.intent === "create_transaction") {
-      const {amount, description} = intentData;
-      if (!amount || !description) {
-        return {reply: "I see you want to add a transaction, but I'm missing some details. Please tell me the amount and what it was for."};
+      const {amount, description, type} = intentData;
+      if (!amount || !description || !type) {
+        return {reply: "I see you want to add a transaction, but I'm missing some details. Please tell me the amount, what it was for, and whether it was an expense or income."};
       }
 
       const accountsSnapshot = await db.collection("users").doc(userId).collection("accounts").limit(1).get();
@@ -181,13 +223,13 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       await _createTransaction(userId, {
         description,
         amount,
-        type: "expense",
+        type,
         category: "General",
         accountId,
         currency: account.currency,
       });
 
-      return {reply: `Transaction of ${account.currency} ${amount} for "${description}" has been added.`};
+      return {reply: `Transaction of ${account.currency} ${amount} for "${description}" has been added as an ${type}.`};
     }
 
     if (intentData.intent === "create_goal") {
@@ -195,12 +237,39 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       return {reply: `I've created a new goal for you: "${intentData.goalName}" with a target of ${intentData.targetAmount}.`};
     }
 
+    if (intentData.intent === "get_spending_summary") {
+      const {timeFrame} = intentData;
+      const {startDate, endDate, timeFrameText} = getDateRangeFromText(timeFrame || "this month");
+
+      const expenseQuery = db
+        .collection("users").doc(userId).collection("transactions")
+        .where("type", "==", "expense")
+        .where("date", ">=", startDate)
+        .where("date", "<=", endDate);
+
+      const expensesSnapshot = await expenseQuery.get();
+      const expenses = expensesSnapshot.docs.map((doc) => doc.data());
+
+      if (expenses.length === 0) {
+        return {reply: `No spending recorded ${timeFrameText}.`};
+      }
+
+      const totalSpending = expenses.reduce((acc, exp) => acc + exp.amount, 0);
+      const summary = expenses.map((exp) => `- ${exp.description}: ${exp.currency} ${exp.amount.toFixed(2)}`).join("\n");
+
+      return {
+        reply: `Here's your spending summary ${timeFrameText}:\n\n${summary}\n\nTotal: ${totalSpending.toFixed(2)}`,
+      };
+    }
+
 
     // --- Default to Advisory Chat ---
     const chatPrompt = `
-        You are a friendly financial advisor named Tajiri.
+        You are a friendly financial advisor named Tajiri. Your goal is to provide concise, helpful, and encouraging financial advice.
+
         User's question: "${userMessage}"
-        Provide a concise and helpful response (max 3-4 sentences).
+        
+        Provide a response that is easy to understand and actionable (max 3-4 sentences).
       `;
     const chatResult = await generativeModel.generateContent(chatPrompt);
     if (!chatResult.response.candidates || chatResult.response.candidates.length === 0) {

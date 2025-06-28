@@ -14,7 +14,7 @@ class AdvisorChatViewModel extends ChangeNotifier {
 
   AdvisorChatViewModel() {
     _messages.add(Message(
-      text: "Hello! I'm Tajiri, your financial advisor. You can ask for advice, or tell me to 'add a transaction of 5000 for lunch' or 'show my spending for this week'.",
+      text: "Hello! I'm Tajiri, your financial advisor. You can ask for advice, or tell me to 'add a transaction of 5000 for lunch'. An internet connection is required for chat.",
       isFromUser: false,
     ));
   }
