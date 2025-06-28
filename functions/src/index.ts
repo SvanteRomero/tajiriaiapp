@@ -1,9 +1,7 @@
 /* eslint-disable linebreak-style */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 /* eslint-disable require-jsdoc */
 /* eslint-disable max-len */
-import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
@@ -12,8 +10,6 @@ import {VertexAI} from "@google-cloud/vertexai";
 
 admin.initializeApp();
 const db = admin.firestore();
-
-functions.params.defineString("GEMINI_API_KEY");
 
 // ===============================================================================================
 // Internal Helper Functions for Core Logic
@@ -134,7 +130,7 @@ async function _createGoal(userId: string, data: any) {
 
 /**
  * Main function for the AI Advisor Chat
- * This function now uses Gemini to determine the user's intent.
+ * This function now uses Gemini to determine the user's intent and entities.
  */
 export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
@@ -143,55 +139,56 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
 
   const userId = request.auth.uid;
   const userMessage = request.data.message as string;
+  const lowerCaseMessage = userMessage.toLowerCase();
 
   if (!userMessage) {
     throw new HttpsError("invalid-argument", "The function must be called with a 'message' argument.");
   }
 
-  // --- Initialize Vertex AI ---
+  // --- Initialize Vertex AI with Gemini 1.5 Pro ---
   const auth = new GoogleAuth({scopes: "https://www.googleapis.com/auth/cloud-platform"});
   const projectId = await auth.getProjectId();
   const location = "us-central1";
   const vertexAI = new VertexAI({project: projectId, location: location});
   const generativeModel = vertexAI.preview.getGenerativeModel({model: "gemini-2.5-pro"});
 
-  // --- Intent Recognition Prompt ---
+  // --- 1. Fetch User's Custom Categories from Firestore ---
+  const categoriesSnapshot = await db.collection("users").doc(userId).collection("categories").get();
+  const userCategories: {[key: string]: {type: "income" | "expense", keywords: string[]}} = {};
+
+  categoriesSnapshot.forEach((doc) => {
+    const categoryData = doc.data();
+    const name = categoryData.name as string;
+    const type = categoryData.type as "income" | "expense";
+
+    if (name && type) {
+      // Generate keywords from the category name
+      const keywords = name.toLowerCase().split(/[\s/]+/).filter((k) => k.length > 2);
+      userCategories[name] = {type, keywords: [...new Set([name.toLowerCase(), ...keywords])]};
+    }
+  });
+
+  // --- 2. AI-Powered Intent Recognition & Entity Extraction ---
   const intentPrompt = `
-  You are an intelligent financial assistant. Your goal is to understand the user's request and categorize it into one of the following intents: 'create_transaction', 'create_goal', 'get_spending_summary', or 'chat'.
+  You are an expert at analyzing user messages to understand their financial intent.
+  Based on the user's message, determine if they want to 'create_transaction' or just 'chat'.
+  
+  Message: "${userMessage}"
 
-  Analyze the user's message: "${userMessage}"
-
-  Follow these rules for intent recognition:
-  1.  **'create_transaction'**: The user wants to record a new expense or income.
-      -   Extract 'amount' (as a number) and 'description' (a string).
-      -   If the user mentions "spent," "paid," "bought," or similar words, the transaction 'type' is 'expense.'
-      -   If the user mentions "earned," "received," "got paid," or similar words, the 'type' is 'income.'
-      -   If the type is not specified, ask the user to clarify.
-
-  2.  **'create_goal'**: The user wants to set a new financial goal.
-      -   Extract 'goalName' (a string), 'targetAmount' (a number), 'endDate' (in YYYY-MM-DD format), and 'dailyLimit' (a number).
-      -   If any of these are missing, ask for the missing information.
-
-  3.  **'get_spending_summary'**: The user wants to see a summary of their spending.
-      -   Extract the 'timeFrame' (e.g., "this week," "last month," "today").
-      -   If no time frame is mentioned, default to "this month."
-
-  4.  **'chat'**: If the user's request does not fit any of the above, classify it as a general chat.
-
+  Follow these rules:
+  1.  If the message mentions spending, buying, paying, earning, receiving money, or contains a clear monetary value, the intent is 'create_transaction'.
+      -   Extract the 'amount' as a number (without currency symbols).
+      -   Extract the 'description' (the main subject of the transaction).
+      -   Determine the 'type' ('expense' for spending, 'income' for earning). If unsure, default to 'expense'.
+  
+  2.  For anything else (questions, greetings, general statements), the intent is 'chat'.
+  
   Respond in JSON format only.
 
   Examples:
-  -   User: "I spent 5000 on lunch"
-      Response: {"intent": "create_transaction", "amount": 5000, "description": "lunch", "type": "expense"}
-
-  -   User: "I want to save for a new car. The goal is 2,000,000 by the end of next year. My daily spending limit is 15,000"
-      Response: {"intent": "create_goal", "goalName": "New Car", "targetAmount": 2000000, "endDate": "2025-12-31", "dailyLimit": 15000}
-
-  -   User: "Show me my spending for last week"
-      Response: {"intent": "get_spending_summary", "timeFrame": "last week"}
-
-  -   User: "What's the best way to save money?"
-      Response: {"intent": "chat"}
+  -   User: "I spent 5000 on lunch with a friend" -> Response: {"intent": "create_transaction", "amount": 5000, "description": "lunch with a friend", "type": "expense"}
+  -   User: "Received 150k for the design project" -> Response: {"intent": "create_transaction", "amount": 150000, "description": "design project", "type": "income"}
+  -   User: "How can I reduce my monthly bills?" -> Response: {"intent": "chat"}
   `;
 
   try {
@@ -201,18 +198,31 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
     }
 
     const rawIntentResponse = intentResult.response.candidates[0].content.parts[0].text;
-    const cleanIntentResponse = rawIntentResponse?.replace(/```json/g, "").replace(/```/g, "");
-
+    const cleanIntentResponse = rawIntentResponse?.replace(/```json/g, "").replace(/```/g, "").trim();
     const intentData = JSON.parse(cleanIntentResponse ?? "{}");
 
-    // --- Execute Actions Based on Intent ---
+    // --- 3. Execute Actions Based on Intent ---
 
     if (intentData.intent === "create_transaction") {
       const {amount, description, type} = intentData;
       if (!amount || !description || !type) {
-        return {reply: "I see you want to add a transaction, but I'm missing some details. Please tell me the amount, what it was for, and whether it was an expense or income."};
+        return {reply: "I see you want to add a transaction, but I'm missing some details. Please tell me the amount and what it was for."};
       }
 
+      // *** NEW: Dynamic Category Assignment Logic ***
+      let assignedCategory = "Miscellaneous"; // Default category
+
+      for (const categoryName of Object.keys(userCategories)) {
+        for (const keyword of userCategories[categoryName].keywords) {
+          if (lowerCaseMessage.includes(keyword)) {
+            assignedCategory = categoryName;
+            break;
+          }
+        }
+        if (assignedCategory !== "Miscellaneous") break;
+      }
+
+      // Get user's primary account
       const accountsSnapshot = await db.collection("users").doc(userId).collection("accounts").limit(1).get();
       if (accountsSnapshot.empty) {
         return {reply: "I can't add a transaction because you don't have an account yet. Please add an account first."};
@@ -221,55 +231,22 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
       const accountId = accountsSnapshot.docs[0].id;
 
       await _createTransaction(userId, {
-        description,
+        description: description,
         amount,
         type,
-        category: "General",
+        category: assignedCategory,
         accountId,
         currency: account.currency,
       });
 
-      return {reply: `Transaction of ${account.currency} ${amount} for "${description}" has been added as an ${type}.`};
+      return {reply: `I've logged a transaction of ${account.currency} ${amount} for "${description}" under the '${assignedCategory}' category.`};
     }
 
-    if (intentData.intent === "create_goal") {
-      await _createGoal(userId, intentData);
-      return {reply: `I've created a new goal for you: "${intentData.goalName}" with a target of ${intentData.targetAmount}.`};
-    }
-
-    if (intentData.intent === "get_spending_summary") {
-      const {timeFrame} = intentData;
-      const {startDate, endDate, timeFrameText} = getDateRangeFromText(timeFrame || "this month");
-
-      const expenseQuery = db
-        .collection("users").doc(userId).collection("transactions")
-        .where("type", "==", "expense")
-        .where("date", ">=", startDate)
-        .where("date", "<=", endDate);
-
-      const expensesSnapshot = await expenseQuery.get();
-      const expenses = expensesSnapshot.docs.map((doc) => doc.data());
-
-      if (expenses.length === 0) {
-        return {reply: `No spending recorded ${timeFrameText}.`};
-      }
-
-      const totalSpending = expenses.reduce((acc, exp) => acc + exp.amount, 0);
-      const summary = expenses.map((exp) => `- ${exp.description}: ${exp.currency} ${exp.amount.toFixed(2)}`).join("\n");
-
-      return {
-        reply: `Here's your spending summary ${timeFrameText}:\n\n${summary}\n\nTotal: ${totalSpending.toFixed(2)}`,
-      };
-    }
-
-
-    // --- Default to Advisory Chat ---
+    // --- Default to General Advisory Chat ---
     const chatPrompt = `
-        You are a friendly financial advisor named Tajiri. Your goal is to provide concise, helpful, and encouraging financial advice.
-
-        User's question: "${userMessage}"
-        
-        Provide a response that is easy to understand and actionable (max 3-4 sentences).
+        You are a friendly and insightful financial advisor named Tajiri.
+        The user's question is: "${userMessage}"
+        Provide a concise, encouraging, and helpful response (max 3-4 sentences).
       `;
     const chatResult = await generativeModel.generateContent(chatPrompt);
     if (!chatResult.response.candidates || chatResult.response.candidates.length === 0) {
@@ -285,6 +262,10 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
   }
 });
 
+
+// ===============================================================================================
+// Other Existing Cloud Functions (Unchanged)
+// ===============================================================================================
 
 export const createTransaction = onCall(async (request: CallableRequest) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "The function must be called while authenticated.");

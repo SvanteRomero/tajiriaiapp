@@ -318,7 +318,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     _buildSummaryCard(totalSpending, totalIncome, currencySymbol),
                     const SizedBox(height: 24),
                     if (monthlyAnalytics.isNotEmpty && monthlyAnalytics.any((m) => m.income > 0 || m.expense > 0)) ...[
-                      _buildIncomeExpenditureBarChart(monthlyAnalytics),
+                      _buildIncomeExpenditureBarChart(monthlyAnalytics, currencySymbol),
                       const SizedBox(height: 24),
                     ],
                     if (totalSpending > 0 && spendingByCategory.isNotEmpty) ...[
@@ -409,6 +409,38 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Widget _buildPieChartCard(List<CategoryData> categories, double total, String title) {
+    final int maxSlices = 5;
+    List<PieChartSectionData> sections = [];
+    
+    if (categories.length > maxSlices) {
+      final topCategories = categories.sublist(0, maxSlices);
+      double othersAmount = categories.sublist(maxSlices).fold(0, (sum, item) => sum + item.amount);
+      
+      sections = topCategories.map((cat) => PieChartSectionData(
+        color: cat.color,
+        value: cat.amount,
+        title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
+        radius: 80,
+        titleStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
+      )).toList();
+
+      sections.add(PieChartSectionData(
+        color: Colors.grey.shade400,
+        value: othersAmount,
+        title: 'Others',
+        radius: 80,
+        titleStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
+      ));
+    } else {
+      sections = categories.map((cat) => PieChartSectionData(
+        color: cat.color,
+        value: cat.amount,
+        title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
+        radius: 80,
+        titleStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
+      )).toList();
+    }
+    
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -424,20 +456,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               height: 200,
               child: PieChart(
                 PieChartData(
-                  sections: categories.map((cat) => PieChartSectionData(
-                    color: cat.color,
-                    value: cat.amount,
-                    title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
-                    radius: 90,
-                    titleStyle: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [const Shadow(blurRadius: 2, color: Colors.black26)],
-                    ),
-                  )).toList(),
+                  sections: sections,
                   sectionsSpace: 3,
-                  centerSpaceRadius: 0,
+                  centerSpaceRadius: 40,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                      // Optional: Handle touch events
+                    },
+                  ),
                 ),
               ),
             ),
@@ -518,7 +544,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildIncomeExpenditureBarChart(List<MonthlyAnalytics> monthlyAnalytics) {
+  Widget _buildIncomeExpenditureBarChart(List<MonthlyAnalytics> monthlyAnalytics, String currencySymbol) {
     // Calculate max value for better chart scaling
     double maxValue = 0;
     for (var data in monthlyAnalytics) {
@@ -555,13 +581,13 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         final monthlyData = monthlyAnalytics[group.x.toInt()];
                         String text;
                         if (rodIndex == 0) {
-                          text = 'Income: \$${monthlyData.income.toStringAsFixed(2)}';
+                          text = 'Income: ${NumberFormat.currency(symbol: currencySymbol).format(monthlyData.income)}';
                         } else {
-                          text = 'Expense: \$${monthlyData.expense.toStringAsFixed(2)}';
+                          text = 'Expense: ${NumberFormat.currency(symbol: currencySymbol).format(monthlyData.expense)}';
                         }
                         return BarTooltipItem(
                           text,
-                          const TextStyle(color: Colors.white),
+                          GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
                         );
                       },
                     ),
@@ -577,8 +603,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           if (index < 0 || index >= monthlyAnalytics.length) {
                             return const SizedBox.shrink();
                           }
-                          const style = TextStyle(
-                            color: Colors.black,
+                          final style = GoogleFonts.poppins(
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           );

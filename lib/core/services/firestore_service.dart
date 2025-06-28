@@ -21,7 +21,7 @@ class FirestoreService {
             snapshot.docs.map((doc) => Account.fromFirestore(doc)).toList());
   }
 
-  // UPDATED: Method to add a new account with currency and unique name check
+  // Method to add a new account with currency and unique name check
   Future<void> addAccount(String userId, Account account) async {
     final accountsRef =
         _db.collection('users').doc(userId).collection('accounts');
@@ -46,7 +46,7 @@ class FirestoreService {
     await accountsRef.add(newAccount.toJson());
   }
 
-  // NEW: Method to update an existing account
+  //Method to update an existing account
   Future<void> updateAccount(String userId, Account account) {
     return _db
         .collection('users')
@@ -56,7 +56,7 @@ class FirestoreService {
         .update(account.toJson());
   }
 
-  // NEW: Method to delete an account
+  //Method to delete an account
   Future<void> deleteAccount(String userId, String accountId) {
     return _db
         .collection('users')
@@ -66,7 +66,7 @@ class FirestoreService {
         .delete();
   }
 
-  // UPDATED: Method to add a transaction and update account balance atomically
+  // Method to add a transaction and update account balance atomically
   Future<void> addTransaction(String userId, TransactionModel transaction) async {
     final batch = _db.batch();
 
@@ -98,7 +98,7 @@ class FirestoreService {
   }
 
 
-  // UPDATED: Method to handle transfers between accounts of the same currency
+  //Method to handle transfers between accounts of the same currency
   Future<void> addTransferTransaction(String userId, String fromAccountId,
       String toAccountId, double amount, String description) async {
     final batch = _db.batch();
@@ -165,7 +165,7 @@ class FirestoreService {
   }
 
 
-  // NEW: Method to update a transaction and atomically adjust account balance
+  //Method to update a transaction and atomically adjust account balance
   Future<void> updateTransaction(String userId,
       TransactionModel oldTransaction, TransactionModel newTransaction) {
     final transactionRef = _db
@@ -231,7 +231,7 @@ class FirestoreService {
     });
   }
 
-  // NEW: Method to delete a transaction and atomically reverse its impact on account balance
+  //Method to delete a transaction and atomically reverse its impact on account balance
   Future<void> deleteTransaction(String userId, TransactionModel transaction) {
     final transactionRef = _db
         .collection('users')
@@ -305,7 +305,7 @@ class FirestoreService {
         .add(goal.toJson());
   }
 
-  // NEW: Method to update an existing goal
+  //Method to update an existing goal
   Future<void> updateGoal(String userId, Goal goal) {
     return _db
         .collection('users')
@@ -315,7 +315,7 @@ class FirestoreService {
         .update(goal.toJson());
   }
 
-  // NEW: Method to delete a goal
+  //Method to delete a goal
   Future<void> deleteGoal(String userId, String goalId) {
     return _db
         .collection('users')
@@ -325,7 +325,7 @@ class FirestoreService {
         .delete();
   }
 
-  // Method to fetch daily logs for a specific goal
+  //Method to fetch daily logs for a specific goal
   Stream<List<DailyLog>> getDailyLogs(String userId, String goalId) {
     return _db
         .collection('users')
