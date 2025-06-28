@@ -23,10 +23,12 @@ class FirestoreService {
 
   // UPDATED: Method to add a new account with currency and unique name check
   Future<void> addAccount(String userId, Account account) async {
-    final accountsRef = _db.collection('users').doc(userId).collection('accounts');
-    
+    final accountsRef =
+        _db.collection('users').doc(userId).collection('accounts');
+
     // Check if an account with the same name exists
-    final querySnapshot = await accountsRef.where('name', isEqualTo: account.name).get();
+    final querySnapshot =
+        await accountsRef.where('name', isEqualTo: account.name).get();
 
     String finalName = account.name;
     // If docs with the same name are found, append the currency code
@@ -40,7 +42,7 @@ class FirestoreService {
       balance: account.balance,
       currency: account.currency,
     );
-    
+
     await accountsRef.add(newAccount.toJson());
   }
 
@@ -65,7 +67,9 @@ class FirestoreService {
   }
 
   // UPDATED: Method to add a transaction and update account balance atomically
-  Future<void> addTransaction(String userId, TransactionModel transaction) {
+  Future<void> addTransaction(String userId, TransactionModel transaction) async {
+    final batch = _db.batch();
+
     final transactionRef = _db
         .collection('users')
         .doc(userId)
@@ -77,89 +81,89 @@ class FirestoreService {
         .collection('accounts')
         .doc(transaction.accountId);
 
-    return _db.runTransaction((firestoreTransaction) async {
-      // Get the account document
-      DocumentSnapshot accountDoc = await firestoreTransaction.get(accountRef);
-      if (!accountDoc.exists) {
-        throw Exception("Account not found!");
-      }
+    // We can't use a transaction for offline support, so we'll do a batched write.
+    // This is not as safe as a transaction, but it will work offline.
+    final accountDoc = await accountRef.get();
+    if (accountDoc.exists) {
+        final currentBalance = (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
+        final newBalance = transaction.type == TransactionType.income
+            ? currentBalance + transaction.amount
+            : currentBalance - transaction.amount;
+        batch.update(accountRef, {'balance': newBalance});
+    }
 
-      // Calculate the new balance
-      double currentBalance =
-          (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ??
-              0.0;
-      double newBalance = transaction.type == TransactionType.income
-          ? currentBalance + transaction.amount
-          : currentBalance - transaction.amount;
+    batch.set(transactionRef, transaction.toJson());
 
-      // Update the account balance
-      firestoreTransaction.update(accountRef, {'balance': newBalance});
-
-      // Add the new transaction with currency
-      firestoreTransaction.set(transactionRef, transaction.toJson());
-    });
+    return batch.commit();
   }
+
 
   // UPDATED: Method to handle transfers between accounts of the same currency
   Future<void> addTransferTransaction(String userId, String fromAccountId,
-      String toAccountId, double amount, String description) {
-    final fromAccountRef =
-        _db.collection('users').doc(userId).collection('accounts').doc(fromAccountId);
-    final toAccountRef =
-        _db.collection('users').doc(userId).collection('accounts').doc(toAccountId);
+      String toAccountId, double amount, String description) async {
+    final batch = _db.batch();
+    final fromAccountRef = _db
+        .collection('users')
+        .doc(userId)
+        .collection('accounts')
+        .doc(fromAccountId);
+    final toAccountRef = _db
+        .collection('users')
+        .doc(userId)
+        .collection('accounts')
+        .doc(toAccountId);
     final debitTransactionRef =
         _db.collection('users').doc(userId).collection('transactions').doc();
     final creditTransactionRef =
         _db.collection('users').doc(userId).collection('transactions').doc();
 
-    return _db.runTransaction((firestoreTransaction) async {
-      // Get account documents
-      final fromAccountDoc = await firestoreTransaction.get(fromAccountRef);
-      final toAccountDoc = await firestoreTransaction.get(toAccountRef);
+    final fromAccountDoc = await fromAccountRef.get();
+    final toAccountDoc = await toAccountRef.get();
 
-      if (!fromAccountDoc.exists || !toAccountDoc.exists) {
-        throw Exception("One or both accounts not found!");
-      }
-      
-      final fromAccount = Account.fromFirestore(fromAccountDoc);
-      final toAccount = Account.fromFirestore(toAccountDoc);
+    if (!fromAccountDoc.exists || !toAccountDoc.exists) {
+      throw Exception("One or both accounts not found!");
+    }
 
-      if (fromAccount.currency != toAccount.currency) {
-        throw Exception("Currency must be the same for transfers.");
-      }
+    final fromAccount = Account.fromFirestore(fromAccountDoc);
+    final toAccount = Account.fromFirestore(toAccountDoc);
 
-      // Update balances
-      firestoreTransaction.update(fromAccountRef, {'balance': fromAccount.balance - amount});
-      firestoreTransaction.update(toAccountRef, {'balance': toAccount.balance + amount});
+    if (fromAccount.currency != toAccount.currency) {
+      throw Exception("Currency must be the same for transfers.");
+    }
 
-      // Create transactions
-      final debitTransaction = TransactionModel(
-        id: debitTransactionRef.id,
-        accountId: fromAccountId,
-        description: 'Transfer to ${toAccount.name}: $description',
-        amount: amount,
-        date: DateTime.now(),
-        type: TransactionType.expense, // Representing money leaving the account
-        category: 'Transfer',
-        currency: fromAccount.currency,
-      );
+    // Update balances
+    batch.update(fromAccountRef, {'balance': fromAccount.balance - amount});
+    batch.update(toAccountRef, {'balance': toAccount.balance + amount});
 
-      final creditTransaction = TransactionModel(
-        id: creditTransactionRef.id,
-        accountId: toAccountId,
-        description:
-            'Transfer from ${fromAccount.name}: $description',
-        amount: amount,
-        date: DateTime.now(),
-        type: TransactionType.income, // Representing money entering the account
-        category: 'Transfer',
-        currency: toAccount.currency,
-      );
+    // Create transactions
+    final debitTransaction = TransactionModel(
+      id: debitTransactionRef.id,
+      accountId: fromAccountId,
+      description: 'Transfer to ${toAccount.name}: $description',
+      amount: amount,
+      date: DateTime.now(),
+      type: TransactionType.expense, // Representing money leaving the account
+      category: 'Transfer',
+      currency: fromAccount.currency,
+    );
 
-      firestoreTransaction.set(debitTransactionRef, debitTransaction.toJson());
-      firestoreTransaction.set(creditTransactionRef, creditTransaction.toJson());
-    });
+    final creditTransaction = TransactionModel(
+      id: creditTransactionRef.id,
+      accountId: toAccountId,
+      description: 'Transfer from ${fromAccount.name}: $description',
+      amount: amount,
+      date: DateTime.now(),
+      type: TransactionType.income, // Representing money entering the account
+      category: 'Transfer',
+      currency: toAccount.currency,
+    );
+
+    batch.set(debitTransactionRef, debitTransaction.toJson());
+    batch.set(creditTransactionRef, creditTransaction.toJson());
+
+    return batch.commit();
   }
+
 
   // NEW: Method to update a transaction and atomically adjust account balance
   Future<void> updateTransaction(String userId,
@@ -218,8 +222,8 @@ class FirestoreService {
       firestoreTransaction.update(oldAccountRef, {'balance': oldAccountBalance});
       // Only update newAccountRef if it's different from oldAccountRef
       if (oldTransaction.accountId != newTransaction.accountId) {
-        firestoreTransaction.update(
-            newAccountRef, {'balance': newAccountBalance});
+        firestoreTransaction
+            .update(newAccountRef, {'balance': newAccountBalance});
       }
 
       // 5. Update the transaction document

@@ -1,4 +1,6 @@
 // lib/screens/add_transaction_page.dart
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,8 +10,7 @@ import '/core/models/transaction_model.dart';
 import '/core/utils/snackbar_utils.dart';
 import '/core/services/firestore_service.dart';
 import '/core/models/user_category_model.dart';
-import 'manage_categories_page.dart'
-;
+import 'manage_categories_page.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final User user;
@@ -31,6 +32,31 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   bool _isLoading = false;
   final Logger _logger = Logger('AddTransactionPage');
   final FirestoreService _firestoreService = FirestoreService();
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  bool _isOffline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Connectivity().checkConnectivity().then(_updateConnectionStatus);
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    _descriptionController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  void _updateConnectionStatus(List<ConnectivityResult> connectivityResult) {
+    if (!mounted) return;
+    setState(() {
+      _isOffline = connectivityResult.contains(ConnectivityResult.none);
+    });
+  }
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -57,10 +83,12 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       if (_selectedType == TransactionType.transfer) {
         if (_selectedFromAccount == null || _selectedToAccount == null) {
           showCustomSnackbar(context, 'Please select both accounts.', type: SnackbarType.error);
+          setState(() => _isLoading = false);
           return;
         }
         if (_selectedFromAccount!.currency != _selectedToAccount!.currency) {
           showCustomSnackbar(context, 'Accounts must have the same currency for transfers.', type: SnackbarType.error);
+          setState(() => _isLoading = false);
           return;
         }
         await _firestoreService.addTransferTransaction(
@@ -71,9 +99,15 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           _descriptionController.text,
         );
       } else {
-        if (_selectedFromAccount == null || _selectedCategory == null) {
-          showCustomSnackbar(context, 'Please select an account and category.', type: SnackbarType.error);
-          return;
+        if (_selectedFromAccount == null) {
+            showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
+            setState(() => _isLoading = false);
+            return;
+        }
+        if (_selectedCategory == null) {
+            showCustomSnackbar(context, 'Please select a category.', type: SnackbarType.error);
+            setState(() => _isLoading = false);
+            return;
         }
         final transaction = TransactionModel(
           accountId: _selectedFromAccount!.id,
@@ -84,16 +118,25 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           category: _selectedCategory!,
           currency: _selectedFromAccount!.currency,
         );
-        await _firestoreService.addTransaction(widget.user.uid, transaction);
+        
+        if (_isOffline) {
+            _firestoreService.addTransaction(widget.user.uid, transaction);
+        } else {
+            await _firestoreService.addTransaction(widget.user.uid, transaction);
+        }
       }
+
       if (mounted) {
-        showCustomSnackbar(context, 'Transaction saved successfully!');
+        final message = _isOffline
+            ? 'Transaction saved locally. It will sync when you are back online.'
+            : 'Transaction saved successfully!';
+        showCustomSnackbar(context, message);
         Navigator.of(context).pop();
       }
     } catch (e, s) {
       _logger.severe('Failed to save transaction', e, s);
       if (mounted) {
-        showCustomSnackbar(context, 'Error: ${e.toString()}', type: SnackbarType.error);
+        showCustomSnackbar(context, 'Error saving transaction. Please try again.', type: SnackbarType.error);
       }
     } finally {
       if (mounted) {
@@ -126,11 +169,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               TextFormField(
                 controller: _amountController,
                 decoration: InputDecoration(
-                  labelText: "Amount", 
-                  prefixText: _selectedFromAccount != null 
-                    ? '${_selectedFromAccount!.currency} ' 
-                    : '\$ '
-                ),
+                    labelText: "Amount",
+                    prefixText: _selectedFromAccount != null
+                        ? '${_selectedFromAccount!.currency} '
+                        : '\$ '),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
@@ -173,11 +215,16 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         }
         var accounts = snapshot.data!;
         if (accounts.isEmpty) {
-          return const Text("Please create an account first on your profile page.");
+          return const Text(
+              "Please create an account first on your profile page.");
         }
 
         List<Account> toAccounts = (_selectedFromAccount != null)
-            ? accounts.where((acc) => acc.currency == _selectedFromAccount!.currency && acc.id != _selectedFromAccount!.id).toList()
+            ? accounts
+                .where((acc) =>
+                    acc.currency == _selectedFromAccount!.currency &&
+                    acc.id != _selectedFromAccount!.id)
+                .toList()
             : [];
 
         if (_selectedType == TransactionType.transfer) {
@@ -215,7 +262,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         setState(() {
           if (isFrom) {
             _selectedFromAccount = newValue;
-            _selectedToAccount = null; 
+            if (_selectedToAccount?.id == newValue?.id) {
+              _selectedToAccount = null;
+            }
           } else {
             _selectedToAccount = newValue;
           }
@@ -256,7 +305,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       },
     );
   }
-  
+
   Future<void> _showCategoryPickerDialog() async {
     final selectedCategory = await showDialog<UserCategory>(
       context: context,

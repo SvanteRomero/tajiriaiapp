@@ -1,11 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum SnackbarType { success, error }
+enum SnackbarType { success, error, info }
 
-void showCustomSnackbar(BuildContext context, String message, {SnackbarType type = SnackbarType.success}) {
-  final color = type == SnackbarType.success ? Colors.green.shade600 : Colors.red.shade600;
-  final icon = type == SnackbarType.success ? Icons.check_circle_outline : Icons.error_outline;
+void showCustomSnackbar(BuildContext context, String message,
+    {SnackbarType type = SnackbarType.success}) {
+  Color color;
+  IconData icon;
+
+  switch (type) {
+    case SnackbarType.success:
+      color = Colors.green.shade600;
+      icon = Icons.check_circle_outline;
+      break;
+    case SnackbarType.error:
+      color = Colors.red.shade600;
+      icon = Icons.error_outline;
+      break;
+    case SnackbarType.info:
+      color = Colors.amber.shade800;
+      icon = Icons.info_outline;
+      break;
+  }
 
   final snackbar = SnackBar(
     content: Container(
@@ -28,7 +44,8 @@ void showCustomSnackbar(BuildContext context, String message, {SnackbarType type
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
+              style: GoogleFonts.poppins(
+                  color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -41,5 +58,7 @@ void showCustomSnackbar(BuildContext context, String message, {SnackbarType type
     padding: EdgeInsets.zero,
   );
 
-  ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(snackbar);
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(snackbar);
 }

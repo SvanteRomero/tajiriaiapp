@@ -24,14 +24,20 @@ class _DashboardPageState extends State<DashboardPage> {
   final FirestoreService _firestoreService = FirestoreService();
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
   bool _isOffline = false;
+  
+  // A Key to force the StreamBuilder to rebuild from scratch
+  Key _streamBuilderKey = UniqueKey();
 
   @override
   void initState() {
     super.initState();
-    // Check initial connectivity and listen for changes
-    Connectivity().checkConnectivity().then(_updateConnectionStatus);
+    Connectivity().checkConnectivity().then((connectivityResult) {
+      _updateConnectionStatus(connectivityResult, isInitialCheck: true);
+    });
     _connectivitySubscription =
-        Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+        Connectivity().onConnectivityChanged.listen((connectivityResult) {
+      _updateConnectionStatus(connectivityResult);
+    });
   }
 
   @override
@@ -39,14 +45,53 @@ class _DashboardPageState extends State<DashboardPage> {
     _connectivitySubscription.cancel();
     super.dispose();
   }
-
-  void _updateConnectionStatus(List<ConnectivityResult> connectivityResult) {
-    if (!mounted) return;
-    setState(() {
-      _isOffline = connectivityResult.contains(ConnectivityResult.none);
-    });
+  
+  Stream<Map<String, dynamic>> _createDashboardStream() {
+    // This helper function creates the stream that gets data for the dashboard.
+    return CombineLatestStream.combine2(
+      _firestoreService.getTransactions(widget.user.uid),
+      _firestoreService.getAccounts(widget.user.uid),
+      (List<TransactionModel> transactions, List<Account> accounts) =>
+          {'transactions': transactions, 'accounts': accounts},
+    );
   }
 
+  void _updateConnectionStatus(List<ConnectivityResult> connectivityResult,
+      {bool isInitialCheck = false}) {
+    if (!mounted) return;
+
+    final bool wasOffline = _isOffline;
+    final bool isNowOffline =
+        connectivityResult.contains(ConnectivityResult.none);
+
+    // Update the state immediately to show the offline/online status in the UI
+    if (wasOffline != isNowOffline) {
+      setState(() {
+        _isOffline = isNowOffline;
+      });
+    }
+
+    // Show snackbar notifications and handle data refresh only when the status actually changes.
+    if (!isInitialCheck && wasOffline != isNowOffline) {
+      if (isNowOffline) {
+        showCustomSnackbar(context, 'You are now offline.',
+            type: SnackbarType.info);
+      } else {
+        showCustomSnackbar(context, 'You are back online! Syncing data...',
+            type: SnackbarType.success);
+        
+        // When coming back online, wait a couple of seconds for Firestore to sync
+        // in the background before forcing the UI to refresh.
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _streamBuilderKey = UniqueKey();
+            });
+          }
+        });
+      }
+    }
+  }
 
   Future<bool> _confirmAndDeleteTransaction(
       TransactionModel transaction) async {
@@ -79,7 +124,8 @@ class _DashboardPageState extends State<DashboardPage> {
         return true;
       } catch (e) {
         if (mounted) {
-          showCustomSnackbar(context, 'Failed to delete transaction. Please try again.',
+          showCustomSnackbar(
+              context, 'Failed to delete transaction. Please try again.',
               type: SnackbarType.error);
         }
         return false;
@@ -99,15 +145,12 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: CombineLatestStream.combine2(
-        _firestoreService.getTransactions(widget.user.uid),
-        _firestoreService.getAccounts(widget.user.uid),
-        (List<TransactionModel> transactions, List<Account> accounts) =>
-            {'transactions': transactions, 'accounts': accounts},
-      ),
+    return StreamBuilder<Map<String, dynamic>>(
+      key: _streamBuilderKey, // Assign the key here
+      stream: _createDashboardStream(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
@@ -116,35 +159,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
         final transactions =
             (snapshot.data?['transactions'] as List<TransactionModel>?) ?? [];
-        final accounts = (snapshot.data?['accounts'] as List<Account>?) ?? [];
+        final accounts =
+            (snapshot.data?['accounts'] as List<Account>?) ?? [];
 
-        // Special UI for when offline with no cached data
-        if (_isOffline && transactions.isEmpty && accounts.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.cloud_off_rounded,
-                      size: 80, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text("You are Offline",
-                      style: GoogleFonts.poppins(
-                          fontSize: 18, color: Colors.grey.shade600)),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Your data will appear here once you're back online. You can still add new transactions, which will be saved and synced later.",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        if (transactions.isEmpty) {
+        if (transactions.isEmpty && !_isOffline) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -176,10 +194,14 @@ class _DashboardPageState extends State<DashboardPage> {
 
         return Column(
           children: [
-            _buildBalanceCard(totalBalance, totalIncome, totalExpense, accounts.isNotEmpty ? accounts.first.currency : '\$'),
+            _buildBalanceCard(
+                totalBalance,
+                totalIncome,
+                totalExpense,
+                accounts.isNotEmpty ? accounts.first.currency : '\$'),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0, vertical: 12.0),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text("Recent Transactions",
@@ -213,7 +235,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         await _editTransaction(transaction);
                         return false;
                       } else {
-                        return await _confirmAndDeleteTransaction(transaction);
+                        return await _confirmAndDeleteTransaction(
+                            transaction);
                       }
                     },
                     child: _buildTransactionTile(transaction, account),
@@ -255,16 +278,21 @@ class _DashboardPageState extends State<DashboardPage> {
           Text(
             NumberFormat.currency(symbol: currencySymbol).format(balance),
             style: GoogleFonts.poppins(
-                color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                color: Colors.white,
+                fontSize: 36,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildIncomeExpenseRow(
-                  Icons.arrow_upward, "Income", income, Colors.greenAccent, currencySymbol),
-              _buildIncomeExpenseRow(
-                  Icons.arrow_downward, "Expense", expense, Colors.redAccent, currencySymbol),
+              Expanded(
+                child: _buildIncomeExpenseRow(Icons.arrow_upward, "Income",
+                    income, Colors.greenAccent, currencySymbol),
+              ),
+              Expanded(
+                child: _buildIncomeExpenseRow(Icons.arrow_downward, "Expense",
+                    expense, Colors.redAccent, currencySymbol),
+              ),
             ],
           )
         ],
@@ -272,8 +300,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildIncomeExpenseRow(
-      IconData icon, String label, double amount, Color color, String currencySymbol) {
+  Widget _buildIncomeExpenseRow(IconData icon, String label, double amount,
+      Color color, String currencySymbol) {
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
@@ -282,7 +310,8 @@ class _DashboardPageState extends State<DashboardPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+                style:
+                    GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
             Text(
               NumberFormat.currency(symbol: currencySymbol).format(amount),
               style: GoogleFonts.poppins(
@@ -301,8 +330,11 @@ class _DashboardPageState extends State<DashboardPage> {
     final color = isExpense ? Colors.red.shade400 : Colors.green.shade400;
     final sign = isExpense ? '-' : '+';
     final currencySymbol = account?.currency ?? '\$';
+    final tileColor =
+        transaction.isPending ? Colors.grey.shade300 : Colors.white;
 
     return Card(
+      color: tileColor,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
@@ -313,7 +345,15 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         title: Text(transaction.description,
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        subtitle: Text(DateFormat.yMMMd().format(transaction.date)),
+        subtitle: Row(
+          children: [
+            Text(DateFormat.yMMMd().format(transaction.date)),
+            if (transaction.isPending) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.sync, size: 16, color: Colors.grey),
+            ]
+          ],
+        ),
         trailing: Text(
           "$sign ${NumberFormat.currency(symbol: currencySymbol).format(transaction.amount)}",
           style: GoogleFonts.poppins(
