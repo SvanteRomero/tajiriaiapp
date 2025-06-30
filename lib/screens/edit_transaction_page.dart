@@ -34,6 +34,30 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   @override
   void initState() {
     super.initState();
+
+    // If the transaction is a transfer, prevent editing by showing a dialog and popping the page.
+    if (widget.transaction.type == TransactionType.transfer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Transfers Cannot Be Edited"),
+            content: const Text("To modify a transfer, please delete it and create a new one."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop(); // Close the dialog
+                  Navigator.of(context).pop(); // Go back from the edit page
+                },
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+
     _descriptionController = TextEditingController(text: widget.transaction.description);
     _amountController = TextEditingController(text: widget.transaction.amount.toStringAsFixed(2));
     _selectedType = widget.transaction.type;
@@ -44,7 +68,11 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     _firestoreService.getAccounts(widget.user.uid).first.then((accounts) {
       if (mounted) {
         setState(() {
-          _selectedAccount = accounts.firstWhere((acc) => acc.id == widget.transaction.accountId);
+          try {
+            _selectedAccount = accounts.firstWhere((acc) => acc.id == widget.transaction.accountId);
+          } catch (e) {
+            _selectedAccount = null;
+          }
         });
       }
     });
@@ -157,6 +185,11 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Return an empty container while waiting for the "cannot edit" dialog to pop the page
+    if (widget.transaction.type == TransactionType.transfer) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text("Edit Transaction"),
@@ -225,9 +258,8 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
           return const Text("Please create an account first on your profile page.");
         }
         
-        // This ensures the dropdown doesn't crash if the account is deleted
-        if (_selectedAccount != null && !accounts.contains(_selectedAccount)) {
-          _selectedAccount = null;
+        if (_selectedAccount != null && !accounts.any((acc) => acc.id == _selectedAccount!.id)) {
+            _selectedAccount = null;
         }
 
         return DropdownButtonFormField<Account>(

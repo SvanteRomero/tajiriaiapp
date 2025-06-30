@@ -91,12 +91,14 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           setState(() => _isLoading = false);
           return;
         }
+        
+        // Call the updated service method for transfers
         await _firestoreService.addTransferTransaction(
           widget.user.uid,
           _selectedFromAccount!.id,
           _selectedToAccount!.id,
           double.parse(_amountController.text),
-          _descriptionController.text,
+          _selectedFromAccount!.currency,
         );
       } else {
         if (_selectedFromAccount == null) {
@@ -160,11 +162,15 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               const SizedBox(height: 20),
               _buildAccountSelectors(),
               const SizedBox(height: 16),
-              TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(labelText: "Description"),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter a description' : null),
+              
+              // Conditionally show description for non-transfer types
+              if (_selectedType != TransactionType.transfer)
+                TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(labelText: "Description"),
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a description' : null),
+
               const SizedBox(height: 16),
               TextFormField(
                 controller: _amountController,
@@ -183,10 +189,13 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                   return null;
                 },
               ),
+
+              // Conditionally show category for non-transfer types
               if (_selectedType != TransactionType.transfer) ...[
                 const SizedBox(height: 16),
                 _buildCategorySelector(),
               ],
+
               const SizedBox(height: 16),
               _buildDateSelector(),
               const SizedBox(height: 30),
@@ -263,7 +272,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           if (isFrom) {
             _selectedFromAccount = newValue;
             if (_selectedToAccount?.id == newValue?.id) {
-              _selectedToAccount = null;
+                _selectedToAccount = null;
             }
           } else {
             _selectedToAccount = newValue;

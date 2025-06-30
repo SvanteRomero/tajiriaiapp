@@ -103,9 +103,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           break;
       }
 
+      // Fetch all transactions and then filter them
       final allTransactions = (await _firestoreService.getTransactions(widget.user.uid).first)
           .where((t) => t.date.isAfter(startDate))
           .toList();
+      
+      // Exclude transfers from all analytics calculations
+      final transactionsForAnalytics = allTransactions.where((t) => t.type != TransactionType.transfer).toList();
+
       final userCategories = await _firestoreService.getUserCategories(widget.user.uid).first;
       final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
       final Map<String, UserCategory> categoryMap = {for (var cat in userCategories) cat.name: cat};
@@ -119,9 +124,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         monthlyAnalytics[monthKey] = MonthlyAnalytics(income: 0, expense: 0, month: monthKey);
       }
 
-      // Filter transactions for the last 6 months for monthly analytics
       final sixMonthsAgo = DateTime(now.year, now.month - 5, 1);
-      final monthlyTransactions = allTransactions.where((t) => t.date.isAfter(sixMonthsAgo.subtract(const Duration(days: 1)))).toList();
+      final monthlyTransactions = transactionsForAnalytics.where((t) => t.date.isAfter(sixMonthsAgo.subtract(const Duration(days: 1)))).toList();
 
       for (var transaction in monthlyTransactions) {
         final monthKey = DateFormat('MMM').format(transaction.date);
@@ -143,11 +147,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         }
       }
 
-      // Current period's data (based on selected date range)
-      final currentPeriodTransactions = allTransactions;
-
       // Expenses
-      final currentPeriodExpenses = currentPeriodTransactions.where((t) => t.type == TransactionType.expense).toList();
+      final currentPeriodExpenses = transactionsForAnalytics.where((t) => t.type == TransactionType.expense).toList();
       double totalSpending = 0.0;
       final Map<String, double> spendingMap = {};
       for (var transaction in currentPeriodExpenses) {
@@ -167,7 +168,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       spendingByCategory.sort((a, b) => b.amount.compareTo(a.amount));
 
       // Income
-      final currentPeriodIncome = currentPeriodTransactions.where((t) => t.type == TransactionType.income).toList();
+      final currentPeriodIncome = transactionsForAnalytics.where((t) => t.type == TransactionType.income).toList();
       double totalIncome = 0.0;
       final Map<String, double> incomeMap = {};
       for (var transaction in currentPeriodIncome) {
@@ -545,7 +546,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Widget _buildIncomeExpenditureBarChart(List<MonthlyAnalytics> monthlyAnalytics, String currencySymbol) {
-    // Calculate max value for better chart scaling
     double maxValue = 0;
     for (var data in monthlyAnalytics) {
       if (data.income > maxValue) maxValue = data.income;

@@ -5,25 +5,29 @@ enum TransactionType { income, expense, transfer }
 
 class TransactionModel {
   final String? id;
-  final String accountId;
+  final String accountId; // Still used for income/expense
+  final String? fromAccountId; // Specifically for transfers
+  final String? toAccountId;   // Specifically for transfers
   final String description;
   final double amount;
   final DateTime date;
   final TransactionType type;
   final String category;
   final String currency;
-  final bool isPending; // This flag will be true if the transaction hasn't been synced
+  final bool isPending;
 
   TransactionModel({
     this.id,
     required this.accountId,
+    this.fromAccountId,
+    this.toAccountId,
     required this.description,
     required this.amount,
     required this.date,
     required this.type,
     required this.category,
     required this.currency,
-    this.isPending = false, // Default to false
+    this.isPending = false,
   });
 
   factory TransactionModel.fromFirestore(DocumentSnapshot doc) {
@@ -31,17 +35,14 @@ class TransactionModel {
     return TransactionModel(
       id: doc.id,
       accountId: data['accountId'] ?? '',
+      fromAccountId: data['fromAccountId'], // New field
+      toAccountId: data['toAccountId'],   // New field
       description: data['description'] ?? '',
       amount: (data['amount'] as num).toDouble(),
       date: (data['date'] as Timestamp).toDate(),
-      type: data['type'] == 'income'
-          ? TransactionType.income
-          : data['type'] == 'expense'
-              ? TransactionType.expense
-              : TransactionType.transfer,
+      type: _stringToTransactionType(data['type']),
       category: data['category'] ?? 'Other',
       currency: data['currency'] ?? 'USD',
-      // This is the key part: Firestore's metadata tells us if there are pending writes.
       isPending: doc.metadata.hasPendingWrites,
     );
   }
@@ -49,6 +50,8 @@ class TransactionModel {
   Map<String, dynamic> toJson() {
     return {
       'accountId': accountId,
+      'fromAccountId': fromAccountId, // New field
+      'toAccountId': toAccountId,     // New field
       'description': description,
       'amount': amount,
       'date': Timestamp.fromDate(date),
@@ -56,5 +59,19 @@ class TransactionModel {
       'category': category,
       'currency': currency,
     };
+  }
+
+  static TransactionType _stringToTransactionType(String? type) {
+    switch (type) {
+      case 'income':
+        return TransactionType.income;
+      case 'expense':
+        return TransactionType.expense;
+      case 'transfer':
+        return TransactionType.transfer;
+      default:
+        // Default to expense for any unknown types to be safe.
+        return TransactionType.expense;
+    }
   }
 }
