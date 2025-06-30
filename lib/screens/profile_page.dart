@@ -53,84 +53,114 @@ class _ProfilePageState extends State<ProfilePage> {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController balanceController = TextEditingController();
     final _formKey = GlobalKey<FormState>();
-    String selectedCurrency = 'USD'; // Default currency
+    String selectedCurrency = 'USD';
 
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder( // Use StatefulBuilder to update state inside the dialog
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Add New Account'),
-              content: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextFormField(
-                        controller: nameController,
-                        decoration:
-                            const InputDecoration(labelText: 'Account Name'),
-                        validator: (value) =>
-                            value!.isEmpty ? 'Please enter a name' : null,
+                      const Text(
+                        'Add New Account',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
-                      TextFormField(
-                        controller: balanceController,
-                        decoration:
-                            const InputDecoration(labelText: 'Initial Balance'),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value!.isEmpty) return 'Please enter a balance';
-                          if (double.tryParse(value) == null)
-                            return 'Invalid number';
-                          return null;
-                        },
+                      const SizedBox(height: 16),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Account Name',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) =>
+                                  value!.isEmpty ? 'Please enter a name' : null,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: balanceController,
+                              decoration: const InputDecoration(
+                                labelText: 'Initial Balance',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value!.isEmpty) return 'Please enter a balance';
+                                if (double.tryParse(value) == null) {
+                                  return 'Invalid number';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<String>(
+                              value: selectedCurrency,
+                              decoration: const InputDecoration(
+                                labelText: 'Currency',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: currencies.keys.map((String key) {
+                                return DropdownMenuItem<String>(
+                                  value: key,
+                                  child: Text(key),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                if (newValue != null) {
+                                  setState(() {
+                                    selectedCurrency = newValue;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                      DropdownButtonFormField<String>(
-                        value: selectedCurrency,
-                        decoration: const InputDecoration(labelText: 'Currency'),
-                        items: currencies.keys.map((String key) {
-                          return DropdownMenuItem<String>(
-                            value: key,
-                            child: Text(key),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              selectedCurrency = newValue;
-                            });
-                          }
-                        },
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              if (_formKey.currentState!.validate()) {
+                                final newAccount = Account(
+                                  id: '',
+                                  name: nameController.text,
+                                  balance: double.parse(balanceController.text),
+                                  currency: selectedCurrency,
+                                );
+                                _firestoreService.addAccount(
+                                    _currentUser.uid, newAccount);
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            child: const Text('Add'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      final newAccount = Account(
-                        id: '', // Firestore will generate this
-                        name: nameController.text,
-                        balance: double.parse(balanceController.text),
-                        currency: selectedCurrency,
-                      );
-                      _firestoreService.addAccount(_currentUser.uid, newAccount);
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: const Text('Add'),
-                ),
-              ],
-            );
-          },
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -197,15 +227,17 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 24),
               const Divider(),
               const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text("Accounts",
-                        style:
-                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  )),
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    "Accounts",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
               SizedBox(
-                height: 200, // Give the ListView a fixed height
+                height: 200,
                 child: _buildAccountsList(),
               ),
               const SizedBox(height: 24),
@@ -239,8 +271,8 @@ class _ProfilePageState extends State<ProfilePage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade400),
                   onPressed: _signOut,
                   child: const Text("Sign Out"),
                 ),
@@ -252,7 +284,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-  
+
   Widget _buildAccountsList() {
     return StreamBuilder<List<Account>>(
       stream: _firestoreService.getAccounts(_currentUser.uid),
@@ -268,7 +300,7 @@ class _ProfilePageState extends State<ProfilePage> {
           return const Center(child: Text("No accounts found."));
         }
         return ListView.builder(
-          shrinkWrap: true, // Important for nested lists
+          shrinkWrap: true,
           itemCount: accounts.length,
           itemBuilder: (context, index) {
             final account = accounts[index];
@@ -277,7 +309,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text(account.name),
                 trailing: Text(
                   NumberFormat.currency(
-                    symbol: account.currency, // Use the account's currency
+                    symbol: account.currency,
                     decimalDigits: 2,
                   ).format(account.balance),
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -285,7 +317,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 onTap: () async {
                   final bool? result = await Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => EditAccountPage(user: widget.user, account: account),
+                      builder: (_) =>
+                          EditAccountPage(user: widget.user, account: account),
                     ),
                   );
                   if (result == true) {
