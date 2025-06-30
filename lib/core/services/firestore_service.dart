@@ -10,6 +10,7 @@ import '/screens/goal_details_page.dart';
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // ... (getAccounts, addAccount, updateAccount, deleteAccount methods are unchanged)
 
   Stream<List<Account>> getAccounts(String userId) {
     return _db
@@ -57,13 +58,15 @@ class FirestoreService {
         .delete();
   }
   
-  // Method for standard income/expense transactions
+  // Method for standard income/expense transactions (already supports offline)
   Future<void> addTransaction(String userId, TransactionModel transaction) async {
     final batch = _db.batch();
     final transactionRef = _db.collection('users').doc(userId).collection('transactions').doc();
     final accountRef = _db.collection('users').doc(userId).collection('accounts').doc(transaction.accountId);
-    final accountDoc = await accountRef.get();
-
+    
+    // This part requires a read, which can be tricky offline, but Firestore handles caching.
+    // The write itself is added to the batch and will execute when online.
+    final accountDoc = await accountRef.get(const GetOptions(source: Source.cache));
     if (accountDoc.exists) {
         final currentBalance = (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
         final newBalance = transaction.type == TransactionType.income
@@ -76,7 +79,7 @@ class FirestoreService {
     return batch.commit();
   }
 
-  // UPDATED: Method to handle transfers as a single transaction
+  // CORRECTED: Method to handle transfers with offline support
   Future<void> addTransferTransaction(String userId, String fromAccountId,
       String toAccountId, double amount, String currency) async {
     final batch = _db.batch();
@@ -85,42 +88,42 @@ class FirestoreService {
     final toAccountRef = _db.collection('users').doc(userId).collection('accounts').doc(toAccountId);
     final transactionRef = _db.collection('users').doc(userId).collection('transactions').doc();
 
-    // Use a transaction to safely read and write account balances
-    return _db.runTransaction((transaction) async {
-      final fromAccountDoc = await transaction.get(fromAccountRef);
-      final toAccountDoc = await transaction.get(toAccountRef);
+    // Perform reads from the cache first to ensure offline capability
+    final fromAccountDoc = await fromAccountRef.get(const GetOptions(source: Source.cache));
+    final toAccountDoc = await toAccountRef.get(const GetOptions(source: Source.cache));
 
-      if (!fromAccountDoc.exists || !toAccountDoc.exists) {
-        throw Exception("One or both accounts not found!");
-      }
+    if (!fromAccountDoc.exists || !toAccountDoc.exists) {
+      throw Exception("One or both accounts not found. Please ensure you are online to sync account data.");
+    }
 
-      final fromAccount = Account.fromFirestore(fromAccountDoc);
-      final toAccount = Account.fromFirestore(toAccountDoc);
+    final fromAccount = Account.fromFirestore(fromAccountDoc);
+    final toAccount = Account.fromFirestore(toAccountDoc);
 
-      if (fromAccount.currency != toAccount.currency) {
-        throw Exception("Currency must be the same for transfers.");
-      }
+    if (fromAccount.currency != toAccount.currency) {
+      throw Exception("Currency must be the same for transfers.");
+    }
 
-      // Update balances
-      transaction.update(fromAccountRef, {'balance': fromAccount.balance - amount});
-      transaction.update(toAccountRef, {'balance': toAccount.balance + amount});
+    // Prepare updates for the batch
+    batch.update(fromAccountRef, {'balance': fromAccount.balance - amount});
+    batch.update(toAccountRef, {'balance': toAccount.balance + amount});
 
-      // Create a single transfer transaction document
-      final transferTransaction = TransactionModel(
-        id: transactionRef.id,
-        accountId: '', // Not applicable for a transfer
-        fromAccountId: fromAccountId,
-        toAccountId: toAccountId,
-        description: 'Transfer', // A simple, consistent description
-        amount: amount,
-        date: DateTime.now(),
-        type: TransactionType.transfer,
-        category: 'Transfer', // A fixed category for transfers
-        currency: currency,
-      );
+    final transferTransaction = TransactionModel(
+      id: transactionRef.id,
+      accountId: '',
+      fromAccountId: fromAccountId,
+      toAccountId: toAccountId,
+      description: 'Transfer',
+      amount: amount,
+      date: DateTime.now(),
+      type: TransactionType.transfer,
+      category: 'Transfer',
+      currency: currency,
+    );
 
-      transaction.set(transactionRef, transferTransaction.toJson());
-    });
+    batch.set(transactionRef, transferTransaction.toJson());
+
+    // Commit the batched write. This will be queued offline and execute upon connection.
+    return batch.commit();
   }
 
   // ... (updateTransaction, deleteTransaction, getTransactions, and all other methods are unchanged)

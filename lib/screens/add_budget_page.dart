@@ -1,6 +1,7 @@
 // lib/screens/add_budget_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '/core/models/account_model.dart';
 import '/core/models/budget_model.dart';
 import '/core/models/transaction_model.dart';
 import '/core/models/user_category_model.dart';
@@ -23,6 +24,7 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
   String? _selectedCategory;
   final _amountController = TextEditingController();
   final FirestoreService _firestoreService = FirestoreService();
+  String _currencySymbol = '\$';
   bool get _isEditing => widget.budget != null;
 
   @override
@@ -31,6 +33,16 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
     if (_isEditing) {
       _selectedCategory = widget.budget!.category;
       _amountController.text = widget.budget!.amount.toString();
+    }
+    _fetchCurrency();
+  }
+
+  Future<void> _fetchCurrency() async {
+    final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
+    if (accounts.isNotEmpty && mounted) {
+      setState(() {
+        _currencySymbol = accounts.first.currency;
+      });
     }
   }
 
@@ -59,7 +71,7 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
                         const SizedBox(height: 10),
                         ElevatedButton(
                           onPressed: () {
-                            Navigator.of(context).pop(); // Close dialog
+                            Navigator.of(context).pop();
                             Navigator.of(context).push(MaterialPageRoute(
                               builder: (_) =>
                                   ManageCategoriesPage(user: widget.user),
@@ -200,7 +212,9 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
                 if (confirm == true) {
                   await _firestoreService.deleteBudget(
                       widget.user.uid, widget.budget!.id!);
-                  Navigator.of(context).pop();
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                  }
                 }
               },
             )
@@ -216,7 +230,10 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _amountController,
-                decoration: const InputDecoration(labelText: 'Budget Amount'),
+                decoration: InputDecoration(
+                  labelText: 'Budget Amount',
+                  prefixText: '$_currencySymbol ',
+                ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -243,13 +260,19 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
                     if (_isEditing) {
                       await _firestoreService.updateBudget(
                           widget.user.uid, budget);
-                      showCustomSnackbar(context, "Budget updated!");
+                      if (mounted) {
+                        showCustomSnackbar(context, "Budget updated!");
+                      }
                     } else {
                       await _firestoreService.addBudget(
                           widget.user.uid, budget);
-                      showCustomSnackbar(context, "Budget added!");
+                      if (mounted) {
+                        showCustomSnackbar(context, "Budget added!");
+                      }
                     }
-                    Navigator.of(context).pop();
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
                   }
                 },
                 child: Text(_isEditing ? 'Save' : 'Add'),

@@ -4,9 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '/core/models/goal_model.dart';
 import '/core/services/firestore_service.dart';
-import '/core/services/ai_advisor_service.dart'; // For AI suggestion
+import '/core/services/ai_advisor_service.dart';
 import '/core/utils/snackbar_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '/core/models/account_model.dart';
 
 class AddGoalPage extends StatefulWidget {
   final User user;
@@ -21,9 +22,10 @@ class _AddGoalPageState extends State<AddGoalPage> {
   final _goalNameController = TextEditingController();
   final _targetAmountController = TextEditingController();
   final _dailyLimitController = TextEditingController();
-  DateTime _selectedEndDate = DateTime.now().add(const Duration(days: 30)); // Default 30 days from now
+  DateTime _selectedEndDate = DateTime.now().add(const Duration(days: 30));
   bool _isLoading = false;
   String? _suggestedDailyLimit;
+  String _currencySymbol = '\$';
 
   final FirestoreService _firestoreService = FirestoreService();
   final AiAdvisorService _aiAdvisorService = AiAdvisorService();
@@ -31,20 +33,29 @@ class _AddGoalPageState extends State<AddGoalPage> {
   @override
   void initState() {
     super.initState();
-    _suggestDailyLimit();
+    _fetchCurrencyAndSuggestLimit();
   }
 
-  Future<void> _suggestDailyLimit() async {
+  Future<void> _fetchCurrencyAndSuggestLimit() async {
     try {
-      final response = await _aiAdvisorService.suggestDailyLimit(); // You'll need to add this method to AiAdvisorService
-      setState(() {
-        _suggestedDailyLimit = response;
-      });
+      final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
+      if (accounts.isNotEmpty && mounted) {
+        setState(() {
+          _currencySymbol = accounts.first.currency;
+        });
+      }
+      final response = await _aiAdvisorService.suggestDailyLimit();
+      if (mounted) {
+        setState(() {
+          _suggestedDailyLimit = response;
+        });
+      }
     } catch (e) {
-      showCustomSnackbar(context, "Failed to get daily limit suggestion.", type: SnackbarType.error);
+      if (mounted) {
+        showCustomSnackbar(context, "Failed to get daily limit suggestion.", type: SnackbarType.error);
+      }
     }
   }
-
 
   Future<void> _selectEndDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -69,18 +80,18 @@ class _AddGoalPageState extends State<AddGoalPage> {
 
     try {
       final newGoal = Goal(
-        id: '', // Firestore will generate this
+        id: '',
         goalName: _goalNameController.text,
         targetAmount: double.parse(_targetAmountController.text),
-        savedAmount: 0.0, // Starting saved amount is 0
+        savedAmount: 0.0,
         startDate: DateTime.now(),
         endDate: _selectedEndDate,
         dailyLimit: double.parse(_dailyLimitController.text),
-        timezone: 'Africa/Dar_es_Salaam', // This should ideally be detected or selected by the user
+        timezone: 'Africa/Dar_es_Salaam',
         createdAt: DateTime.now(),
       );
 
-      await _firestoreService.addGoal(widget.user.uid, newGoal); // You'll need to add this method to FirestoreService
+      await _firestoreService.addGoal(widget.user.uid, newGoal);
       if (mounted) {
         showCustomSnackbar(context, 'Financial goal set successfully!');
         Navigator.of(context).pop();
@@ -115,7 +126,7 @@ class _AddGoalPageState extends State<AddGoalPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _targetAmountController,
-                decoration: const InputDecoration(labelText: "Target Amount", prefixText: "\$ "),
+                decoration: InputDecoration(labelText: "Target Amount", prefixText: "$_currencySymbol "),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value!.isEmpty) return 'Please enter a target amount';
@@ -142,7 +153,7 @@ class _AddGoalPageState extends State<AddGoalPage> {
                 controller: _dailyLimitController,
                 decoration: InputDecoration(
                   labelText: "Daily Spending Limit",
-                  prefixText: "\$ ",
+                  prefixText: "$_currencySymbol ",
                   suffixIcon: _suggestedDailyLimit != null
                       ? IconButton(
                           icon: const Icon(Icons.info_outline),

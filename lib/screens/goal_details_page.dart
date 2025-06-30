@@ -5,8 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '/core/models/goal_model.dart';
 import '/core/services/firestore_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import CloudFirestore for Timestamp
-import '/screens/edit_goal_page.dart'; // Import EditGoalPage
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/screens/edit_goal_page.dart';
+import '/core/models/account_model.dart'; // Import account model for currency
+import '/core/models/transaction_model.dart'; // Import transaction model for filtering
 
 // Daily Log model for subcollection
 class DailyLog {
@@ -47,33 +49,79 @@ class GoalDetailsPage extends StatefulWidget {
 class _GoalDetailsPageState extends State<GoalDetailsPage> {
   final FirestoreService _firestoreService = FirestoreService();
   late Goal _currentGoal;
+  String _currencySymbol = '\$'; // Default currency
 
   @override
   void initState() {
     super.initState();
     _currentGoal = widget.goal;
+    _fetchCurrency();
+  }
+
+  Future<void> _fetchCurrency() async {
+    final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
+    if (accounts.isNotEmpty && mounted) {
+      setState(() {
+        _currencySymbol = accounts.first.currency;
+      });
+    }
   }
 
   // Method to refresh goal data after an edit on EditGoalPage
   Future<void> _refreshGoal() async {
-    // Re-fetch the goal to ensure currentGoal is up-to-date
-    // This is important because the goal might have been updated or deleted
-    final updatedGoalDoc = await _firestoreService.getGoals(widget.user.uid)
-        .first // Get the first (and only) list of goals
-        .then((goals) => goals.firstWhere(
-            (g) => g.id == _currentGoal.id,
-            orElse: () => null as Goal // Return null if goal not found
-        ));
+    final goalStream = _firestoreService.getGoals(widget.user.uid).map((goals) {
+      try {
+        return goals.firstWhere((g) => g.id == _currentGoal.id);
+      } catch (e) {
+        return null;
+      }
+    });
 
+    final updatedGoal = await goalStream.first;
 
-    if (updatedGoalDoc != null && mounted) {
+    if (updatedGoal != null && mounted) {
       setState(() {
-        _currentGoal = updatedGoalDoc;
+        _currentGoal = updatedGoal;
       });
     } else if (mounted) {
-      // If the goal no longer exists (e.g., it was deleted), pop back to MyGoalsPage
-      Navigator.of(context).pop(true); // Indicate that a change happened that requires MyGoalsPage to refresh
+      Navigator.of(context).pop(true);
     }
+  }
+  
+  // Stream for daily logs that correctly filters transactions
+  Stream<List<DailyLog>> _getDailyLogs() {
+    return _firestoreService.getTransactions(widget.user.uid).map((transactions) {
+      final expenses = transactions.where((t) => t.type == TransactionType.expense).toList();
+      final Map<String, double> dailySpending = {};
+
+      for (var expense in expenses) {
+        final dayKey = DateFormat('yyyy-MM-dd').format(expense.date);
+        dailySpending.update(dayKey, (value) => value + expense.amount, ifAbsent: () => expense.amount);
+      }
+
+      final logs = <DailyLog>[];
+      final daysSinceStart = DateTime.now().difference(_currentGoal.startDate).inDays;
+
+      for (int i = 0; i <= daysSinceStart; i++) {
+        final date = _currentGoal.startDate.add(Duration(days: i));
+        final dayKey = DateFormat('yyyy-MM-dd').format(date);
+        final spentToday = dailySpending[dayKey] ?? 0.0;
+        
+        if (date.isAfter(DateTime.now())) continue;
+
+        final savedToday = _currentGoal.dailyLimit - spentToday;
+        final status = savedToday >= 0 ? 'success' : 'failed';
+
+        logs.add(DailyLog(
+          date: date,
+          spentAmount: spentToday,
+          savedAmount: savedToday > 0 ? savedToday : 0,
+          status: status,
+          comment: status == 'success' ? "Well done!" : "Overspent.",
+        ));
+      }
+      return logs.reversed.toList();
+    });
   }
 
 
@@ -97,7 +145,7 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
                 ),
               );
               if (result == true) {
-                await _refreshGoal(); // Refresh data if changes were saved or goal was deleted
+                await _refreshGoal();
               }
             },
           ),
@@ -122,9 +170,10 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
   }
 
   Widget _buildGoalSummaryCard(double progress, String progressPercentage, int remainingDays) {
+    final currencyFormat = NumberFormat.currency(symbol: _currencySymbol, decimalDigits: 2);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.all(0), // Removed margin to prevent double margin with parent padding
+      margin: const EdgeInsets.all(0),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -136,7 +185,7 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
         children: [
           Text("Current Progress", style: GoogleFonts.poppins(color: Colors.white70, fontSize: 16)),
           const SizedBox(height: 8),
-          Text(NumberFormat.currency(symbol: '\$').format(_currentGoal.savedAmount),
+          Text(currencyFormat.format(_currentGoal.savedAmount),
               style: GoogleFonts.poppins(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
           const SizedBox(height: 16),
           LinearProgressIndicator(
@@ -150,7 +199,7 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Target: ${NumberFormat.currency(symbol: '\$').format(_currentGoal.targetAmount)}",
+              Text("Target: ${currencyFormat.format(_currentGoal.targetAmount)}",
                   style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
               Text("$progressPercentage%", style: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
             ],
@@ -163,6 +212,7 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
   }
 
   Widget _buildGoalDetails() {
+    final currencyFormat = NumberFormat.currency(symbol: _currencySymbol, decimalDigits: 2);
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -174,7 +224,7 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
           children: [
             Text("Goal Details", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
-            _buildDetailRow("Daily Limit:", NumberFormat.currency(symbol: '\$').format(_currentGoal.dailyLimit)),
+            _buildDetailRow("Daily Limit:", currencyFormat.format(_currentGoal.dailyLimit)),
             _buildDetailRow("Start Date:", DateFormat.yMMMd().format(_currentGoal.startDate)),
             _buildDetailRow("End Date:", DateFormat.yMMMd().format(_currentGoal.endDate)),
             _buildDetailRow("Current Streak:", "${_currentGoal.streakCount} days"),
@@ -200,8 +250,9 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
   }
 
   Widget _buildDailyLogList() {
+    final currencyFormat = NumberFormat.currency(symbol: _currencySymbol, decimalDigits: 2);
     return StreamBuilder<List<DailyLog>>(
-      stream: _firestoreService.getDailyLogs(widget.user.uid, _currentGoal.id),
+      stream: _getDailyLogs(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -233,8 +284,8 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text("Spent: \$${log.spentAmount.toStringAsFixed(2)}", style: GoogleFonts.poppins(fontSize: 13)),
-                    Text("Saved: \$${log.savedAmount.toStringAsFixed(2)}", style: GoogleFonts.poppins(fontSize: 13, color: Colors.green)),
+                    Text("Spent: ${currencyFormat.format(log.spentAmount)}", style: GoogleFonts.poppins(fontSize: 13)),
+                    Text("Saved: ${currencyFormat.format(log.savedAmount)}", style: GoogleFonts.poppins(fontSize: 13, color: Colors.green)),
                   ],
                 ),
               ),

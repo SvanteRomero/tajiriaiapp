@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:rxdart/rxdart.dart';
+import '../core/models/account_model.dart';
 import '../core/models/budget_model.dart';
 import '../core/models/goal_model.dart';
 import '../core/models/transaction_model.dart';
@@ -70,7 +71,9 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
       abandonedAt: null,
     );
     await _firestoreService.updateGoal(widget.user.uid, reactivatedGoal);
-    showCustomSnackbar(context, 'Goal reactivated!');
+    if (mounted) {
+      showCustomSnackbar(context, 'Goal reactivated!');
+    }
   }
 
   @override
@@ -81,6 +84,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
         _firestoreService.getBudgets(widget.user.uid),
         _firestoreService.getTransactions(widget.user.uid),
         _firestoreService.getUserCategories(widget.user.uid),
+        _firestoreService.getAccounts(widget.user.uid), // Fetch accounts for currency
       ]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
@@ -94,6 +98,8 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
         final budgets = (snapshot.data?[1] as List<Budget>?) ?? [];
         final transactions = (snapshot.data?[2] as List<TransactionModel>?) ?? [];
         final categories = (snapshot.data?[3] as List<UserCategory>?) ?? [];
+        final accounts = (snapshot.data?[4] as List<Account>?) ?? [];
+        final currencySymbol = accounts.isNotEmpty ? accounts.first.currency : '\$';
 
         if (_isOffline && goals.isEmpty && budgets.isEmpty) {
           return Center(
@@ -193,7 +199,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
                   style: GoogleFonts.poppins(
                       fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              ...activeGoals.map((goal) => _buildGoalCard(context, goal)).toList(),
+              ...activeGoals.map((goal) => _buildGoalCard(context, goal, currencySymbol)).toList(),
               const SizedBox(height: 24),
             ],
             if (budgets.isNotEmpty) ...[
@@ -203,7 +209,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
               const SizedBox(height: 16),
               ...budgets
                   .map((budget) =>
-                      _buildBudgetCard(context, budget, transactions, categories))
+                      _buildBudgetCard(context, budget, transactions, categories, currencySymbol))
                   .toList(),
               const SizedBox(height: 24),
             ],
@@ -248,7 +254,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
                       fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ...historicalGoals
-                  .map((goal) => _buildGoalCard(context, goal))
+                  .map((goal) => _buildGoalCard(context, goal, currencySymbol))
                   .toList(),
             ],
           ],
@@ -258,18 +264,19 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
   }
 
   Widget _buildBudgetCard(BuildContext context, Budget budget,
-      List<TransactionModel> transactions, List<UserCategory> categories) {
+      List<TransactionModel> transactions, List<UserCategory> categories, String currencySymbol) {
     final category = categories.firstWhere(
       (cat) => cat.name == budget.category,
       orElse: () =>
           UserCategory(name: '', type: TransactionType.expense), // Fallback
     );
     final categoryColor = category.id != null ? category.color : Colors.deepPurple;
+    final currencyFormat = NumberFormat.currency(symbol: currencySymbol, decimalDigits: 2);
 
     final spent = transactions
         .where((t) =>
+            t.type == TransactionType.expense && // Only count expenses
             t.category == budget.category &&
-            t.type == TransactionType.expense &&
             t.date.month == DateTime.now().month &&
             t.date.year == DateTime.now().year)
         .fold(0.0, (prev, e) => prev + e.amount);
@@ -308,7 +315,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                      "Spent: ${NumberFormat.currency(symbol: '\$').format(spent)} / ${NumberFormat.currency(symbol: '\$').format(budget.amount)}",
+                      "Spent: ${currencyFormat.format(spent)} / ${currencyFormat.format(budget.amount)}",
                       style: GoogleFonts.poppins(
                           fontSize: 14, color: Colors.grey.shade700)),
                   Text("${(progress * 100).toStringAsFixed(1)}%",
@@ -360,11 +367,12 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
     );
   }
 
-  Widget _buildGoalCard(BuildContext context, Goal goal) {
+  Widget _buildGoalCard(BuildContext context, Goal goal, String currencySymbol) {
     final progress =
         goal.targetAmount > 0 ? goal.savedAmount / goal.targetAmount : 0.0;
     final progressPercentage = (progress * 100).toStringAsFixed(1);
     final remainingDays = goal.endDate.difference(DateTime.now()).inDays;
+    final currencyFormat = NumberFormat.currency(symbol: currencySymbol, decimalDigits: 2);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -374,7 +382,9 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
         onTap: () async {
           await Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => GoalDetailsPage(user: widget.user, goal: goal)));
-          setState(() {});
+          if (mounted) {
+            setState(() {});
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -398,7 +408,7 @@ class _MyGoalsPageState extends State<MyGoalsPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                      "Progress: ${NumberFormat.currency(symbol: '\$').format(goal.savedAmount)} / ${NumberFormat.currency(symbol: '\$').format(goal.targetAmount)}",
+                      "Progress: ${currencyFormat.format(goal.savedAmount)} / ${currencyFormat.format(goal.targetAmount)}",
                       style: GoogleFonts.poppins(
                           fontSize: 14, color: Colors.grey.shade700)),
                   Text("$progressPercentage%",

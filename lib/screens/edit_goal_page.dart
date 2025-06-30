@@ -6,10 +6,11 @@ import '/core/models/goal_model.dart';
 import '/core/services/firestore_service.dart';
 import '/core/utils/snackbar_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '/core/models/account_model.dart';
 
 class EditGoalPage extends StatefulWidget {
   final User user;
-  final Goal goal; // The goal to be edited
+  final Goal goal;
 
   const EditGoalPage({Key? key, required this.user, required this.goal}) : super(key: key);
 
@@ -24,6 +25,7 @@ class _EditGoalPageState extends State<EditGoalPage> {
   late TextEditingController _dailyLimitController;
   late DateTime _selectedEndDate;
   bool _isLoading = false;
+  String _currencySymbol = '\$';
   final FirestoreService _firestoreService = FirestoreService();
 
   @override
@@ -33,6 +35,16 @@ class _EditGoalPageState extends State<EditGoalPage> {
     _targetAmountController = TextEditingController(text: widget.goal.targetAmount.toStringAsFixed(2));
     _dailyLimitController = TextEditingController(text: widget.goal.dailyLimit.toStringAsFixed(2));
     _selectedEndDate = widget.goal.endDate;
+    _fetchCurrency();
+  }
+  
+  Future<void> _fetchCurrency() async {
+    final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
+    if (accounts.isNotEmpty && mounted) {
+      setState(() {
+        _currencySymbol = accounts.first.currency;
+      });
+    }
   }
 
   @override
@@ -69,17 +81,17 @@ class _EditGoalPageState extends State<EditGoalPage> {
         id: widget.goal.id,
         goalName: _goalNameController.text.trim(),
         targetAmount: double.parse(_targetAmountController.text),
-        savedAmount: widget.goal.savedAmount, // Keep current saved amount
-        startDate: widget.goal.startDate, // Keep original start date
+        savedAmount: widget.goal.savedAmount,
+        startDate: widget.goal.startDate,
         endDate: _selectedEndDate,
         dailyLimit: double.parse(_dailyLimitController.text),
-        timezone: widget.goal.timezone, // Keep original timezone
-        status: widget.goal.status, // Keep original status
-        goalVersion: widget.goal.goalVersion, // Keep original version
-        streakCount: widget.goal.streakCount, // Keep original streak count
-        graceDaysUsed: widget.goal.graceDaysUsed, // Keep original grace days
-        createdAt: widget.goal.createdAt, // Keep original creation date
-        updatedAt: DateTime.now(), // Update modification date
+        timezone: widget.goal.timezone,
+        status: widget.goal.status,
+        goalVersion: widget.goal.goalVersion,
+        streakCount: widget.goal.streakCount,
+        graceDaysUsed: widget.goal.graceDaysUsed,
+        createdAt: widget.goal.createdAt,
+        updatedAt: DateTime.now(),
       );
 
       await _firestoreService.updateGoal(widget.user.uid, updatedGoal);
@@ -89,8 +101,6 @@ class _EditGoalPageState extends State<EditGoalPage> {
       }
     } catch (e) {
       if (mounted) {
-        // Debugging print
-        print('Error updating goal: $e');
         showCustomSnackbar(context, 'Failed to update goal. Please try again.', type: SnackbarType.error);
       }
     } finally {
@@ -123,16 +133,12 @@ class _EditGoalPageState extends State<EditGoalPage> {
     if (confirmDelete == true) {
       setState(() => _isLoading = true);
       try {
-        // Debugging print: Check the goal ID being passed
-        print('Attempting to delete goal with ID: ${widget.goal.id} for user ${widget.user.uid}');
         await _firestoreService.deleteGoal(widget.user.uid, widget.goal.id);
         if (mounted) {
           showCustomSnackbar(context, 'Goal deleted successfully!');
-          Navigator.of(context).pop(true); // Pop with true to indicate success
+          Navigator.of(context).pop(true);
         }
       } catch (e) {
-        // Debugging print: Print the actual error to console
-        print('Error deleting goal: $e');
         if (mounted) {
           showCustomSnackbar(context, 'Failed to delete goal. Please try again.', type: SnackbarType.error);
         }
@@ -174,7 +180,7 @@ class _EditGoalPageState extends State<EditGoalPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _targetAmountController,
-                decoration: const InputDecoration(labelText: "Target Amount", prefixText: "\$ "),
+                decoration: InputDecoration(labelText: "Target Amount", prefixText: "$_currencySymbol "),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Please enter a target amount';
@@ -199,7 +205,7 @@ class _EditGoalPageState extends State<EditGoalPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _dailyLimitController,
-                decoration: const InputDecoration(labelText: "Daily Spending Limit", prefixText: "\$ "),
+                decoration: InputDecoration(labelText: "Daily Spending Limit", prefixText: "$_currencySymbol "),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Please enter a daily limit';
