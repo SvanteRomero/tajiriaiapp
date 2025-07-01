@@ -6,9 +6,9 @@ import 'package:intl/intl.dart';
 import '/core/data/currencies.dart';
 import '/core/models/account_model.dart';
 import '/core/services/firestore_service.dart';
-import 'edit_profile_page.dart';
-import 'edit_account_page.dart';
-import 'settings_page.dart'; // Import the new settings page
+import 'edit/edit_profile_page.dart';
+import 'edit/edit_account_page.dart';
+import 'settings/settings_page.dart'; // Import the new settings page
 
 class ProfilePage extends StatefulWidget {
   final User user;

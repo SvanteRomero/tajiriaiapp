@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '/core/models/goal_model.dart';
 import '/core/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '/screens/edit_goal_page.dart';
+import '../edit/edit_goal_page.dart';
 import '/core/models/account_model.dart'; // Import account model for currency
 import '/core/models/transaction_model.dart'; // Import transaction model for filtering
 

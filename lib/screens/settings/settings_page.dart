@@ -5,9 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:tajiri_ai/core/viewmodels/theme_provider.dart';
 import 'package:tajiri_ai/screens/auth/login_page.dart';
-import 'package:tajiri_ai/screens/edit_profile_page.dart';
-import 'package:tajiri_ai/screens/manage_categories_page.dart';
-import 'package:tajiri_ai/screens/notification_settings_page.dart';
+import 'package:tajiri_ai/screens/edit/edit_profile_page.dart';
+import 'package:tajiri_ai/screens/manage/manage_categories_page.dart';
+import 'package:tajiri_ai/screens/settings/notification_settings_page.dart';
 
 class SettingsPage extends StatelessWidget {
   final User user;

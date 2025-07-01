@@ -9,7 +9,7 @@ import '/core/models/account_model.dart';
 import '/core/models/transaction_model.dart';
 import '/core/services/firestore_service.dart';
 import '/core/utils/snackbar_utils.dart';
-import 'edit_transaction_page.dart';
+import 'edit/edit_transaction_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final User user;

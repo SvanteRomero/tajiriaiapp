@@ -6,7 +6,7 @@ import '/core/models/transaction_model.dart';
 import '/core/models/user_category_model.dart';
 import '/core/services/firestore_service.dart';
 import '/core/utils/snackbar_utils.dart';
-import '/screens/manage_categories_page.dart';
+import '../manage/manage_categories_page.dart';
 
 class AddBudgetPage extends StatefulWidget {
   final User user;

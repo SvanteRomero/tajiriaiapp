@@ -1,3 +1,4 @@
+// lib/core/models/user_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
@@ -6,6 +7,11 @@ class UserModel {
   final String? displayName;
   final String? photoUrl;
   final String? phoneNumber;
+  final bool transactionalNotifications;
+  final bool goalNotifications;
+  final bool financialSummaries;
+  final bool financialTips;
+  final bool personalizedAlerts;
 
   UserModel({
     required this.uid,
@@ -13,16 +19,26 @@ class UserModel {
     this.displayName,
     this.photoUrl,
     this.phoneNumber,
+    this.transactionalNotifications = true,
+    this.goalNotifications = true,
+    this.financialSummaries = true,
+    this.financialTips = true,
+    this.personalizedAlerts = true,
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return UserModel(
       uid: doc.id,
       email: data['email'] ?? '',
       displayName: data['displayName'],
       photoUrl: data['photoUrl'],
       phoneNumber: data['phoneNumber'],
+      transactionalNotifications: data['transactionalNotifications'] ?? true,
+      goalNotifications: data['goalNotifications'] ?? true,
+      financialSummaries: data['financialSummaries'] ?? true,
+      financialTips: data['financialTips'] ?? true,
+      personalizedAlerts: data['personalizedAlerts'] ?? true,
     );
   }
 
@@ -33,25 +49,11 @@ class UserModel {
       'displayName': displayName,
       'photoUrl': photoUrl,
       'phoneNumber': phoneNumber,
+      'transactionalNotifications': transactionalNotifications,
+      'goalNotifications': goalNotifications,
+      'financialSummaries': financialSummaries,
+      'financialTips': financialTips,
+      'personalizedAlerts': personalizedAlerts,
     };
   }
 }
-
-//   Map<String, dynamic> toJson() => {
-//         'uid': uid,
-//         'name': name,
-//         'email': email,
-//         'monthlyIncome': monthlyIncome,
-//         'savingsGoal': savingsGoal,
-//         'financialGoal': financialGoal,
-//       };
-//
-//   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
-//         uid: json['uid'],
-//         name: json['name'],
-//         email: json['email'],
-//         monthlyIncome: json['monthlyIncome'] ?? 0.0,
-//         savingsGoal: json['savingsGoal'] ?? 0.0,
-//         financialGoal: json['financialGoal'] ?? '',
-//       );
-// }

@@ -10,7 +10,7 @@ import '/core/models/transaction_model.dart';
 import '/core/utils/snackbar_utils.dart';
 import '/core/services/firestore_service.dart';
 import '/core/models/user_category_model.dart';
-import 'manage_categories_page.dart';
+import '../manage/manage_categories_page.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final User user;

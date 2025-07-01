@@ -14,9 +14,9 @@ import '../core/models/transaction_model.dart';
 import '../core/models/user_category_model.dart';
 import '../core/services/firestore_service.dart';
 import '../core/utils/snackbar_utils.dart';
-import '../screens/add_budget_page.dart';
-import '../screens/add_goal_page.dart';
-import '../screens/goal_details_page.dart';
+import 'add/add_budget_page.dart';
+import 'add/add_goal_page.dart';
+import 'details/goal_details_page.dart';
 
 class MyGoalsPage extends StatefulWidget {
   final User user;

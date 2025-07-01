@@ -1,11 +1,12 @@
 // lib/core/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/user_model.dart';
 import '/core/models/account_model.dart';
 import '/core/models/budget_model.dart';
 import '/core/models/transaction_model.dart';
 import '/core/models/goal_model.dart';
 import '/core/models/user_category_model.dart';
-import '/screens/goal_details_page.dart';
+import '../../screens/details/goal_details_page.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -360,4 +361,21 @@ class FirestoreService {
         .doc(budgetId)
         .delete();
   }
+
+  Future<void> updateUserNotificationSettings(
+      String userId, Map<String, dynamic> settings) {
+    return _db.collection('users').doc(userId).set(
+          settings,
+          SetOptions(merge: true),
+        );
+  }
+
+  Stream<UserModel> getUser(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .map((doc) => UserModel.fromFirestore(doc));
+  }
+
 }

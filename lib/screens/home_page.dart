@@ -4,7 +4,7 @@ import 'advisory.dart';
 import 'analytics.dart';
 import 'dashboard_page.dart';
 import 'profile_page.dart';
-import 'add_transaction_page.dart';
+import '/screens/add/add_transaction_page.dart';
 import 'budget_n_goals_page.dart'; // Import the MyGoalsPage
 
 class HomePage extends StatefulWidget {
