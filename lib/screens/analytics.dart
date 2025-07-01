@@ -18,7 +18,8 @@ class CategoryData {
   final IconData icon;
   final String currency;
 
-  CategoryData(this.category, this.amount, this.color, this.icon, this.currency);
+  CategoryData(
+      this.category, this.amount, this.color, this.icon, this.currency);
 }
 
 class MonthlyAnalytics {
@@ -26,7 +27,8 @@ class MonthlyAnalytics {
   final double expense;
   final String month;
 
-  MonthlyAnalytics({required this.income, required this.expense, required this.month});
+  MonthlyAnalytics(
+      {required this.income, required this.expense, required this.month});
 }
 
 enum DateRange { last7Days, last30Days, last90Days, allTime }
@@ -104,28 +106,40 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       }
 
       // Fetch all transactions and then filter them
-      final allTransactions = (await _firestoreService.getTransactions(widget.user.uid).first)
-          .where((t) => t.date.isAfter(startDate))
-          .toList();
-      
-      // Exclude transfers from all analytics calculations
-      final transactionsForAnalytics = allTransactions.where((t) => t.type != TransactionType.transfer).toList();
+      final allTransactions =
+          (await _firestoreService.getTransactions(widget.user.uid).first)
+              .where((t) => t.date.isAfter(startDate))
+              .toList();
 
-      final userCategories = await _firestoreService.getUserCategories(widget.user.uid).first;
-      final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
-      final Map<String, UserCategory> categoryMap = {for (var cat in userCategories) cat.name: cat};
-      final Map<String, Account> accountMap = {for (var acc in accounts) acc.id: acc};
+      // Exclude transfers from all analytics calculations
+      final transactionsForAnalytics =
+          allTransactions.where((t) => t.type != TransactionType.transfer).toList();
+
+      final userCategories =
+          await _firestoreService.getUserCategories(widget.user.uid).first;
+      final accounts =
+          await _firestoreService.getAccounts(widget.user.uid).first;
+      final Map<String, UserCategory> categoryMap = {
+        for (var cat in userCategories) cat.name: cat
+      };
+      final Map<String, Account> accountMap = {
+        for (var acc in accounts) acc.id: acc
+      };
 
       // Monthly analytics for the last 6 months
       final monthlyAnalytics = <String, MonthlyAnalytics>{};
       for (int i = 5; i >= 0; i--) {
         final monthDate = DateTime(now.year, now.month - i, 1);
         final monthKey = DateFormat('MMM').format(monthDate);
-        monthlyAnalytics[monthKey] = MonthlyAnalytics(income: 0, expense: 0, month: monthKey);
+        monthlyAnalytics[monthKey] =
+            MonthlyAnalytics(income: 0, expense: 0, month: monthKey);
       }
 
       final sixMonthsAgo = DateTime(now.year, now.month - 5, 1);
-      final monthlyTransactions = transactionsForAnalytics.where((t) => t.date.isAfter(sixMonthsAgo.subtract(const Duration(days: 1)))).toList();
+      final monthlyTransactions = transactionsForAnalytics
+          .where((t) =>
+              t.date.isAfter(sixMonthsAgo.subtract(const Duration(days: 1))))
+          .toList();
 
       for (var transaction in monthlyTransactions) {
         final monthKey = DateFormat('MMM').format(transaction.date);
@@ -148,42 +162,58 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       }
 
       // Expenses
-      final currentPeriodExpenses = transactionsForAnalytics.where((t) => t.type == TransactionType.expense).toList();
+      final currentPeriodExpenses = transactionsForAnalytics
+          .where((t) => t.type == TransactionType.expense)
+          .toList();
       double totalSpending = 0.0;
       final Map<String, double> spendingMap = {};
       for (var transaction in currentPeriodExpenses) {
         totalSpending += transaction.amount;
-        spendingMap.update(transaction.category, (value) => value + transaction.amount, ifAbsent: () => transaction.amount);
+        spendingMap.update(
+            transaction.category, (value) => value + transaction.amount,
+            ifAbsent: () => transaction.amount);
       }
-      final List<CategoryData> spendingByCategory = spendingMap.entries.map((entry) {
+      final List<CategoryData> spendingByCategory =
+          spendingMap.entries.map((entry) {
         final categoryName = entry.key;
         final amount = entry.value;
         final UserCategory? customCategory = categoryMap[categoryName];
         final Color categoryColor = customCategory?.color ?? Colors.grey;
         final IconData categoryIcon = customCategory?.icon ?? Icons.category;
-        final account = accountMap[currentPeriodExpenses.firstWhere((t) => t.category == categoryName).accountId];
+        final account = accountMap[currentPeriodExpenses
+            .firstWhere((t) => t.category == categoryName)
+            .accountId];
         final currency = account?.currency ?? '\$';
-        return CategoryData(categoryName, amount, categoryColor, categoryIcon, currency);
+        return CategoryData(
+            categoryName, amount, categoryColor, categoryIcon, currency);
       }).toList();
       spendingByCategory.sort((a, b) => b.amount.compareTo(a.amount));
 
       // Income
-      final currentPeriodIncome = transactionsForAnalytics.where((t) => t.type == TransactionType.income).toList();
+      final currentPeriodIncome = transactionsForAnalytics
+          .where((t) => t.type == TransactionType.income)
+          .toList();
       double totalIncome = 0.0;
       final Map<String, double> incomeMap = {};
       for (var transaction in currentPeriodIncome) {
         totalIncome += transaction.amount;
-        incomeMap.update(transaction.category, (value) => value + transaction.amount, ifAbsent: () => transaction.amount);
+        incomeMap.update(
+            transaction.category, (value) => value + transaction.amount,
+            ifAbsent: () => transaction.amount);
       }
-      final List<CategoryData> incomeByCategory = incomeMap.entries.map((entry) {
+      final List<CategoryData> incomeByCategory =
+          incomeMap.entries.map((entry) {
         final categoryName = entry.key;
         final amount = entry.value;
         final UserCategory? customCategory = categoryMap[categoryName];
         final Color categoryColor = customCategory?.color ?? Colors.grey;
         final IconData categoryIcon = customCategory?.icon ?? Icons.category;
-        final account = accountMap[currentPeriodIncome.firstWhere((t) => t.category == categoryName).accountId];
+        final account = accountMap[currentPeriodIncome
+            .firstWhere((t) => t.category == categoryName)
+            .accountId];
         final currency = account?.currency ?? '\$';
-        return CategoryData(categoryName, amount, categoryColor, categoryIcon, currency);
+        return CategoryData(
+            categoryName, amount, categoryColor, categoryIcon, currency);
       }).toList();
       incomeByCategory.sort((a, b) => b.amount.compareTo(a.amount));
 
@@ -250,49 +280,62 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                      Icon(Icons.error_outline,
+                          size: 64, color: Colors.red.shade400),
                       const SizedBox(height: 16),
-                      Text("Error loading analytics", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+                      Text("Error loading analytics",
+                          style: GoogleFonts.poppins(
+                              fontSize: 18, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
-                      Text("${snapshot.error}", style: GoogleFonts.poppins(color: Colors.grey.shade600)),
+                      Text("${snapshot.error}",
+                          style: GoogleFonts.poppins(
+                              color: Colors.grey.shade600)),
                     ],
                   ),
                 );
               }
-              if (!snapshot.hasData || (snapshot.data!['totalSpending'] == 0 && snapshot.data!['totalIncome'] == 0)) {
+              if (!snapshot.hasData ||
+                  (snapshot.data!['totalSpending'] == 0 &&
+                      snapshot.data!['totalIncome'] == 0)) {
                 if (_isOffline) {
-                   return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.cloud_off_rounded,
-                                size: 80, color: Colors.grey.shade400),
-                            const SizedBox(height: 16),
-                            Text("You are Offline",
-                                style: GoogleFonts.poppins(
-                                    fontSize: 18, color: Colors.grey.shade600)),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Your analytics will appear here once you're back online.",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(color: Colors.grey.shade500),
-                            ),
-                          ],
-                        ),
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.cloud_off_rounded,
+                              size: 80, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text("You are Offline",
+                              style: GoogleFonts.poppins(
+                                  fontSize: 18, color: Colors.grey.shade600)),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Your analytics will appear here once you're back online.",
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                                color: Colors.grey.shade500),
+                          ),
+                        ],
                       ),
-                    );
+                    ),
+                  );
                 }
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.bar_chart_rounded, size: 80, color: Colors.grey.shade400),
+                      Icon(Icons.bar_chart_rounded,
+                          size: 80, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
-                      Text("No financial data for this period.", style: GoogleFonts.poppins(fontSize: 18, color: Colors.grey.shade600)),
+                      Text("No financial data for this period.",
+                          style: GoogleFonts.poppins(
+                              fontSize: 18, color: Colors.grey.shade600)),
                       const SizedBox(height: 8),
-                      Text("Add transactions to see your analytics!", style: GoogleFonts.poppins(color: Colors.grey.shade500)),
+                      Text("Add transactions to see your analytics!",
+                          style:
+                              GoogleFonts.poppins(color: Colors.grey.shade500)),
                     ],
                   ),
                 );
@@ -301,11 +344,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               final data = snapshot.data!;
               final totalSpending = data['totalSpending'] as double;
               final totalIncome = data['totalIncome'] as double;
-              final spendingByCategory = data['spendingByCategory'] as List<CategoryData>;
-              final incomeByCategory = data['incomeByCategory'] as List<CategoryData>;
-              final monthlyAnalytics = data['monthlyAnalytics'] as List<MonthlyAnalytics>;
+              final spendingByCategory =
+                  data['spendingByCategory'] as List<CategoryData>;
+              final incomeByCategory =
+                  data['incomeByCategory'] as List<CategoryData>;
+              final monthlyAnalytics =
+                  data['monthlyAnalytics'] as List<MonthlyAnalytics>;
               final accounts = data['accounts'] as List<Account>;
-              final currencySymbol = accounts.isNotEmpty ? accounts.first.currency : '\$';
+              final currencySymbol =
+                  accounts.isNotEmpty ? accounts.first.currency : '\$';
 
               return RefreshIndicator(
                 onRefresh: () async {
@@ -316,28 +363,37 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 child: ListView(
                   padding: const EdgeInsets.all(16.0),
                   children: [
-                    _buildSummaryCard(totalSpending, totalIncome, currencySymbol),
+                    _buildSummaryCard(
+                        totalSpending, totalIncome, currencySymbol),
                     const SizedBox(height: 24),
-                    if (monthlyAnalytics.isNotEmpty && monthlyAnalytics.any((m) => m.income > 0 || m.expense > 0)) ...[
-                      _buildIncomeExpenditureBarChart(monthlyAnalytics, currencySymbol),
+                    if (monthlyAnalytics.isNotEmpty &&
+                        monthlyAnalytics.any((m) => m.income > 0 || m.expense > 0)) ...[
+                      _buildIncomeExpenditureBarChart(
+                          monthlyAnalytics, currencySymbol),
                       const SizedBox(height: 24),
                     ],
                     if (totalSpending > 0 && spendingByCategory.isNotEmpty) ...[
-                      _buildPieChartCard(spendingByCategory, totalSpending, "Spending Breakdown"),
+                      _buildPieChartCard(spendingByCategory, totalSpending,
+                          "Spending Breakdown"),
                       const SizedBox(height: 24),
-                      _buildCategoryListCard(spendingByCategory, totalSpending, "Spending Details By Category"),
+                      _buildCategoryListCard(spendingByCategory, totalSpending,
+                          "Spending Details By Category"),
                       const SizedBox(height: 24),
                     ],
                     if (totalIncome > 0 && incomeByCategory.isNotEmpty) ...[
-                      _buildPieChartCard(incomeByCategory, totalIncome, "Income Breakdown"),
+                      _buildPieChartCard(
+                          incomeByCategory, totalIncome, "Income Breakdown"),
                       const SizedBox(height: 24),
-                      _buildCategoryListCard(incomeByCategory, totalIncome, "Income Details By Category"),
+                      _buildCategoryListCard(incomeByCategory, totalIncome,
+                          "Income Details By Category"),
                     ],
                     if (totalSpending == 0 && totalIncome == 0) ...[
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
-                          child: Text("No transactions to display for this period.", style: TextStyle(color: Colors.grey)),
+                          child: Text(
+                              "No transactions to display for this period.",
+                              style: TextStyle(color: Colors.grey)),
                         ),
                       ),
                     ],
@@ -351,8 +407,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildSummaryCard(double totalSpending, double totalIncome, String currencySymbol) {
+  Widget _buildSummaryCard(
+      double totalSpending, double totalIncome, String currencySymbol) {
     final periodTitle = _getPeriodTitle();
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(0),
@@ -360,13 +418,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
-          colors: [Colors.deepPurple.shade500, Colors.deepPurple.shade700],
+          colors: [
+            theme.primaryColor,
+            theme.primaryColor.withOpacity(0.8),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.deepPurple.withOpacity(0.4),
+            color: theme.primaryColor.withOpacity(0.4),
             blurRadius: 15,
             offset: const Offset(0, 5),
           )
@@ -409,39 +470,61 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildPieChartCard(List<CategoryData> categories, double total, String title) {
+  Widget _buildPieChartCard(
+      List<CategoryData> categories, double total, String title) {
     final int maxSlices = 5;
     List<PieChartSectionData> sections = [];
-    
+
     if (categories.length > maxSlices) {
       final topCategories = categories.sublist(0, maxSlices);
-      double othersAmount = categories.sublist(maxSlices).fold(0, (sum, item) => sum + item.amount);
-      
-      sections = topCategories.map((cat) => PieChartSectionData(
-        color: cat.color,
-        value: cat.amount,
-        title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
-        radius: 80,
-        titleStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
-      )).toList();
+      double othersAmount =
+          categories.sublist(maxSlices).fold(0, (sum, item) => sum + item.amount);
+
+      sections = topCategories
+          .map((cat) => PieChartSectionData(
+                color: cat.color,
+                value: cat.amount,
+                title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
+                radius: 80,
+                titleStyle: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      const Shadow(color: Colors.black26, blurRadius: 2)
+                    ]),
+              ))
+          .toList();
 
       sections.add(PieChartSectionData(
         color: Colors.grey.shade400,
         value: othersAmount,
         title: 'Others',
         radius: 80,
-        titleStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
+        titleStyle: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
       ));
     } else {
-      sections = categories.map((cat) => PieChartSectionData(
-        color: cat.color,
-        value: cat.amount,
-        title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
-        radius: 80,
-        titleStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(color: Colors.black26, blurRadius: 2)]),
-      )).toList();
+      sections = categories
+          .map((cat) => PieChartSectionData(
+                color: cat.color,
+                value: cat.amount,
+                title: '${(cat.amount / total * 100).toStringAsFixed(0)}%',
+                radius: 80,
+                titleStyle: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      const Shadow(color: Colors.black26, blurRadius: 2)
+                    ]),
+              ))
+          .toList();
     }
-    
+
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -451,7 +534,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+            Text(title,
+                style: GoogleFonts.poppins(
+                    fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 20),
             SizedBox(
               height: 200,
@@ -474,7 +559,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildCategoryListCard(List<CategoryData> categories, double total, String title) {
+  Widget _buildCategoryListCard(
+      List<CategoryData> categories, double total, String title) {
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -484,7 +570,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+            Text(title,
+                style: GoogleFonts.poppins(
+                    fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
             ...categories.map((cat) => _buildCategoryListItem(cat, total)).toList(),
           ],
@@ -510,12 +598,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               children: [
                 Text(
                   category.category,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  NumberFormat.currency(symbol: category.currency).format(category.amount),
-                  style: GoogleFonts.poppins(color: Colors.grey.shade600, fontSize: 13),
+                  NumberFormat.currency(symbol: category.currency)
+                      .format(category.amount),
+                  style: GoogleFonts.poppins(
+                      color: Colors.grey.shade600, fontSize: 13),
                 ),
               ],
             ),
@@ -527,7 +618,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               children: [
                 Text(
                   "${(percentage * 100).toStringAsFixed(1)}%",
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 4),
                 LinearProgressIndicator(
@@ -545,13 +637,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildIncomeExpenditureBarChart(List<MonthlyAnalytics> monthlyAnalytics, String currencySymbol) {
+  Widget _buildIncomeExpenditureBarChart(
+      List<MonthlyAnalytics> monthlyAnalytics, String currencySymbol) {
     double maxValue = 0;
     for (var data in monthlyAnalytics) {
       if (data.income > maxValue) maxValue = data.income;
       if (data.expense > maxValue) maxValue = data.expense;
     }
-    
+
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -563,7 +656,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           children: [
             Text(
               "Monthly Summary (Last 6 Months)",
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+              style: GoogleFonts.poppins(
+                  fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -577,17 +671,21 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     touchTooltipData: BarTouchTooltipData(
                       getTooltipColor: (group) => Colors.grey.shade800,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                        if (group.x.toInt() >= monthlyAnalytics.length) return null;
+                        if (group.x.toInt() >= monthlyAnalytics.length)
+                          return null;
                         final monthlyData = monthlyAnalytics[group.x.toInt()];
                         String text;
                         if (rodIndex == 0) {
-                          text = 'Income: ${NumberFormat.currency(symbol: currencySymbol).format(monthlyData.income)}';
+                          text =
+                              'Income: ${NumberFormat.currency(symbol: currencySymbol).format(monthlyData.income)}';
                         } else {
-                          text = 'Expense: ${NumberFormat.currency(symbol: currencySymbol).format(monthlyData.expense)}';
+                          text =
+                              'Expense: ${NumberFormat.currency(symbol: currencySymbol).format(monthlyData.expense)}';
                         }
                         return BarTooltipItem(
                           text,
-                          GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
+                          GoogleFonts.poppins(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         );
                       },
                     ),
@@ -609,14 +707,18 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           );
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(monthlyAnalytics[index].month, style: style),
+                            child:
+                                Text(monthlyAnalytics[index].month, style: style),
                           );
                         },
                       ),
                     ),
-                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles:
+                        const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles:
+                        const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles:
+                        const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   borderData: FlBorderData(show: false),
                   barGroups: monthlyAnalytics.asMap().entries.map((entry) {

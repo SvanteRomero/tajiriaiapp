@@ -43,7 +43,7 @@ class _HomePageState extends State<HomePage> {
         title: Text(_pageTitles[_selectedIndex] ?? ''),
         actions: [
           IconButton(
-            icon: const Icon(Icons.account_circle_outlined),
+            icon: const Icon(Icons.account_circle_sharp),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => ProfilePage(user: widget.user)),

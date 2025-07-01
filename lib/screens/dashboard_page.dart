@@ -92,8 +92,10 @@ class _DashboardPageState extends State<DashboardPage> {
     if (confirm == true) {
       try {
         if (transaction.type == TransactionType.transfer) {
-           showCustomSnackbar(context, 'Please delete transfers from the transaction history for now.', type: SnackbarType.error);
-           return false;
+          showCustomSnackbar(
+              context, 'Please delete transfers from the transaction history for now.',
+              type: SnackbarType.error);
+          return false;
         }
         await _firestoreService.deleteTransaction(widget.user.uid, transaction);
         if (mounted) {
@@ -128,7 +130,8 @@ class _DashboardPageState extends State<DashboardPage> {
     return StreamBuilder<List<Account>>(
       stream: _firestoreService.getAccounts(widget.user.uid),
       builder: (context, accountsSnapshot) {
-        if (accountsSnapshot.connectionState == ConnectionState.waiting && !accountsSnapshot.hasData) {
+        if (accountsSnapshot.connectionState == ConnectionState.waiting &&
+            !accountsSnapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (accountsSnapshot.hasError) {
@@ -137,16 +140,19 @@ class _DashboardPageState extends State<DashboardPage> {
 
         final accounts = accountsSnapshot.data ?? [];
         final accountMap = {for (var acc in accounts) acc.id: acc};
-        final currencySymbol = accounts.isNotEmpty ? accounts.first.currency : '\$';
-        
+        final currencySymbol =
+            accounts.isNotEmpty ? accounts.first.currency : '\$';
+
         // The inner stream gets the transactions, which change frequently.
         return StreamBuilder<List<TransactionModel>>(
           stream: _firestoreService.getTransactions(widget.user.uid),
           builder: (context, transactionsSnapshot) {
-            if (transactionsSnapshot.connectionState == ConnectionState.waiting && !transactionsSnapshot.hasData) {
+            if (transactionsSnapshot.connectionState ==
+                    ConnectionState.waiting &&
+                !transactionsSnapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-             if (transactionsSnapshot.hasError) {
+            if (transactionsSnapshot.hasError) {
               return Center(child: Text("Error: ${transactionsSnapshot.error}"));
             }
 
@@ -157,28 +163,42 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.receipt_long, size: 80, color: Colors.grey.shade400),
+                    Icon(Icons.receipt_long,
+                        size: 80, color: Colors.grey.shade400),
                     const SizedBox(height: 16),
-                    Text("No transactions yet", style: GoogleFonts.poppins(fontSize: 18, color: Colors.grey.shade600)),
+                    Text("No transactions yet",
+                        style: GoogleFonts.poppins(
+                            fontSize: 18, color: Colors.grey.shade600)),
                     const SizedBox(height: 8),
-                    Text("Tap the '+' button to add your first one!", style: GoogleFonts.poppins(color: Colors.grey.shade500)),
+                    Text("Tap the '+' button to add your first one!",
+                        style:
+                            GoogleFonts.poppins(color: Colors.grey.shade500)),
                   ],
                 ),
               );
             }
 
-            double totalBalance = accounts.fold(0.0, (sum, item) => sum + item.balance);
-            double totalIncome = transactions.where((t) => t.type == TransactionType.income).fold(0, (sum, item) => sum + item.amount);
-            double totalExpense = transactions.where((t) => t.type == TransactionType.expense).fold(0, (sum, item) => sum + item.amount);
+            double totalBalance =
+                accounts.fold(0.0, (sum, item) => sum + item.balance);
+            double totalIncome = transactions
+                .where((t) => t.type == TransactionType.income)
+                .fold(0, (sum, item) => sum + item.amount);
+            double totalExpense = transactions
+                .where((t) => t.type == TransactionType.expense)
+                .fold(0, (sum, item) => sum + item.amount);
 
             return Column(
               children: [
-                _buildBalanceCard(totalBalance, totalIncome, totalExpense, currencySymbol),
+                _buildBalanceCard(
+                    totalBalance, totalIncome, totalExpense, currencySymbol),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 12.0),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text("Recent Transactions", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+                    child: Text("Recent Transactions",
+                        style: GoogleFonts.poppins(
+                            fontSize: 18, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 Expanded(
@@ -206,7 +226,8 @@ class _DashboardPageState extends State<DashboardPage> {
                             await _editTransaction(transaction);
                             return false;
                           } else {
-                            return await _confirmAndDeleteTransaction(transaction);
+                            return await _confirmAndDeleteTransaction(
+                                transaction);
                           }
                         },
                         child: _buildTransactionTile(transaction, accountMap),
@@ -222,26 +243,31 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildTransactionTile(TransactionModel transaction, Map<String, Account> accountMap) {
+  Widget _buildTransactionTile(
+      TransactionModel transaction, Map<String, Account> accountMap) {
     if (transaction.type == TransactionType.transfer) {
       final fromAccount = accountMap[transaction.fromAccountId];
       final toAccount = accountMap[transaction.toAccountId];
       final currencySymbol = fromAccount?.currency ?? '\$';
 
       return Card(
-        color: transaction.isPending ? Colors.grey.shade300.withOpacity(0.6) : Colors.white,
+        color: transaction.isPending
+            ? Colors.grey.shade300.withOpacity(0.6)
+            : Theme.of(context).cardColor,
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           leading: CircleAvatar(
             backgroundColor: Colors.blueGrey.shade100,
-            child: Icon(Icons.swap_horiz_rounded, color: Colors.blueGrey.shade700, size: 28),
+            child: Icon(Icons.swap_horiz_rounded,
+                color: Colors.blueGrey.shade700, size: 28),
           ),
           title: Row(
             children: [
               Text(
                 'Transfer',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16),
+                style:
+                    GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16),
               ),
               if (transaction.isPending) ...[
                 const SizedBox(width: 8),
@@ -254,7 +280,8 @@ class _DashboardPageState extends State<DashboardPage> {
             style: GoogleFonts.poppins(fontSize: 14),
           ),
           trailing: Text(
-            NumberFormat.currency(symbol: currencySymbol).format(transaction.amount),
+            NumberFormat.currency(symbol: currencySymbol)
+                .format(transaction.amount),
             style: GoogleFonts.poppins(
               color: Colors.blueGrey.shade800,
               fontWeight: FontWeight.bold,
@@ -270,7 +297,9 @@ class _DashboardPageState extends State<DashboardPage> {
     final color = isExpense ? Colors.red.shade400 : Colors.green.shade400;
     final sign = isExpense ? '-' : '+';
     final currencySymbol = account?.currency ?? '\$';
-    final tileColor = transaction.isPending ? Colors.grey.shade300.withOpacity(0.6) : Colors.white;
+    final tileColor = transaction.isPending
+        ? Colors.grey.shade300.withOpacity(0.6)
+        : Theme.of(context).cardColor;
 
     return Card(
       color: tileColor,
@@ -279,9 +308,12 @@ class _DashboardPageState extends State<DashboardPage> {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withOpacity(0.1),
-          child: Icon(isExpense ? Icons.arrow_downward : Icons.arrow_upward, color: color),
+          child: Icon(
+              isExpense ? Icons.arrow_downward : Icons.arrow_upward,
+              color: color),
         ),
-        title: Text(transaction.description, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        title: Text(transaction.description,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         subtitle: Row(
           children: [
             Text(DateFormat.yMMMd().format(transaction.date)),
@@ -303,7 +335,9 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildBalanceCard(double balance, double income, double expense, String currencySymbol) {
+  Widget _buildBalanceCard(
+      double balance, double income, double expense, String currencySymbol) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),
@@ -311,13 +345,16 @@ class _DashboardPageState extends State<DashboardPage> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
-          colors: [Colors.deepPurple.shade500, Colors.deepPurple.shade700],
+          colors: [
+            theme.primaryColor,
+            theme.primaryColor.withOpacity(0.8),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-              color: Colors.deepPurple.withOpacity(0.4),
+              color: theme.primaryColor.withOpacity(0.4),
               blurRadius: 15,
               offset: const Offset(0, 5)),
         ],
@@ -325,20 +362,25 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Total Balance", style: GoogleFonts.poppins(color: Colors.white70)),
+          Text("Total Balance",
+              style: GoogleFonts.poppins(color: Colors.white70)),
           Text(
             NumberFormat.currency(symbol: currencySymbol).format(balance),
             style: GoogleFonts.poppins(
-                color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                color: Colors.white,
+                fontSize: 36,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: _buildIncomeExpenseRow(Icons.arrow_upward, "Income", income, Colors.greenAccent, currencySymbol),
+                child: _buildIncomeExpenseRow(Icons.arrow_upward, "Income",
+                    income, Colors.greenAccent, currencySymbol),
               ),
               Expanded(
-                child: _buildIncomeExpenseRow(Icons.arrow_downward, "Expense", expense, Colors.redAccent, currencySymbol),
+                child: _buildIncomeExpenseRow(Icons.arrow_downward, "Expense",
+                    expense, Colors.redAccent, currencySymbol),
               ),
             ],
           )
@@ -347,7 +389,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildIncomeExpenseRow(IconData icon, String label, double amount, Color color, String currencySymbol) {
+  Widget _buildIncomeExpenseRow(IconData icon, String label, double amount,
+      Color color, String currencySymbol) {
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
@@ -355,11 +398,14 @@ class _DashboardPageState extends State<DashboardPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+            Text(label,
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
             Text(
               NumberFormat.currency(symbol: currencySymbol).format(amount),
               style: GoogleFonts.poppins(
-                  color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16),
             ),
           ],
         ),

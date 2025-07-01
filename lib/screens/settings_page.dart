@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:tajiri_ai/core/viewmodels/theme_provider.dart';
 import 'package:tajiri_ai/screens/auth/login_page.dart';
 import 'package:tajiri_ai/screens/edit_profile_page.dart';
 import 'package:tajiri_ai/screens/manage_categories_page.dart';
@@ -14,6 +16,8 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text("Settings", style: GoogleFonts.poppins()),
@@ -54,13 +58,18 @@ class SettingsPage extends StatelessWidget {
             icon: Icons.notifications_outlined,
             title: "Notifications",
             onTap: () {
-              // Assuming you have a NotificationSettingsPage
-              // If not, you can create it based on our previous discussions.
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const NotificationSettingsPage(),
                 ),
               );
+            },
+          ),
+          SwitchListTile(
+            title: const Text("Dark Mode"),
+            value: themeProvider.themeMode == ThemeMode.dark,
+            onChanged: (value) {
+              themeProvider.toggleTheme();
             },
           ),
           const SizedBox(height: 24),
