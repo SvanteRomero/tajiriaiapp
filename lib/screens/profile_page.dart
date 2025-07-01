@@ -6,11 +6,9 @@ import 'package:intl/intl.dart';
 import '/core/data/currencies.dart';
 import '/core/models/account_model.dart';
 import '/core/services/firestore_service.dart';
-import 'add_goal_page.dart';
 import 'edit_profile_page.dart';
-import 'package:tajiri_ai/screens/auth/login_page.dart';
 import 'edit_account_page.dart';
-import 'manage_categories_page.dart';
+import 'settings_page.dart'; // Import the new settings page
 
 class ProfilePage extends StatefulWidget {
   final User user;
@@ -28,39 +26,33 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _currentUser = widget.user;
+    _refreshUser();
   }
 
   Future<void> _refreshUser() async {
     await FirebaseAuth.instance.currentUser?.reload();
-    if (mounted) {
+    final freshUser = FirebaseAuth.instance.currentUser;
+    if (mounted && freshUser != null) {
       setState(() {
-        _currentUser = FirebaseAuth.instance.currentUser!;
+        _currentUser = freshUser;
       });
-    }
-  }
-
-  Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (Route<dynamic> route) => false,
-      );
     }
   }
 
   void _showAddAccountDialog() {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController balanceController = TextEditingController();
-    final _formKey = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
     String selectedCurrency = 'USD';
 
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: StatefulBuilder(
@@ -72,11 +64,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       const Text(
                         'Add New Account',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
                       Form(
-                        key: _formKey,
+                        key: formKey,
                         child: Column(
                           children: [
                             TextFormField(
@@ -97,7 +90,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               keyboardType: TextInputType.number,
                               validator: (value) {
-                                if (value!.isEmpty) return 'Please enter a balance';
+                                if (value!.isEmpty)
+                                  return 'Please enter a balance';
                                 if (double.tryParse(value) == null) {
                                   return 'Invalid number';
                                 }
@@ -139,7 +133,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () {
-                              if (_formKey.currentState!.validate()) {
+                              if (formKey.currentState!.validate()) {
                                 final newAccount = Account(
                                   id: '',
                                   name: nameController.text,
@@ -166,22 +160,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _navigateToAddGoalPage() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddGoalPage(user: widget.user),
-      ),
-    );
-  }
-
-  void _navigateToManageCategoriesPage() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ManageCategoriesPage(user: widget.user),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,96 +167,71 @@ class _ProfilePageState extends State<ProfilePage> {
         title: const Text("Profile"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final result = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                    builder: (_) => EditProfilePage(user: _currentUser)),
-              );
-              if (result == true) {
-                _refreshUser();
-              }
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: "Settings",
+            onPressed: () {
+              Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(
+                      builder: (_) => SettingsPage(user: _currentUser),
+                    ),
+                  )
+                  .then((_) => _refreshUser());
             },
           )
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              CircleAvatar(
-                radius: 50,
-                backgroundImage: _currentUser.photoURL != null
-                    ? NetworkImage(_currentUser.photoURL!)
-                    : null,
-                child: _currentUser.photoURL == null
-                    ? const Icon(Icons.person, size: 50)
-                    : null,
-              ),
-              const SizedBox(height: 20),
-              Text(_currentUser.displayName ?? 'No Name',
-                  style: GoogleFonts.poppins(
-                      fontSize: 22, fontWeight: FontWeight.bold)),
-              Text(_currentUser.email ?? 'No Email',
-                  style: GoogleFonts.poppins(
-                      fontSize: 16, color: Colors.grey.shade600)),
-              const SizedBox(height: 24),
-              const Divider(),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: Text(
-                    "Accounts",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      body: RefreshIndicator(
+        onRefresh: _refreshUser,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                CircleAvatar(
+                  radius: 50,
+                  backgroundImage: _currentUser.photoURL != null
+                      ? NetworkImage(_currentUser.photoURL!)
+                      : null,
+                  child: _currentUser.photoURL == null
+                      ? const Icon(Icons.person, size: 50)
+                      : null,
+                ),
+                const SizedBox(height: 20),
+                Text(_currentUser.displayName ?? 'No Name',
+                    style: GoogleFonts.poppins(
+                        fontSize: 22, fontWeight: FontWeight.bold)),
+                Text(_currentUser.email ?? 'No Email',
+                    style: GoogleFonts.poppins(
+                        fontSize: 16, color: Colors.grey.shade600)),
+                const SizedBox(height: 24),
+                const Divider(),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      "Accounts",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(
-                height: 200,
-                child: _buildAccountsList(),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _showAddAccountDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text("Add Account"),
+                _buildAccountsList(),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _showAddAccountDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text("Add Account"),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _navigateToAddGoalPage,
-                  icon: const Icon(Icons.flag_outlined),
-                  label: const Text("Add New Goal"),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _navigateToManageCategoriesPage,
-                  icon: const Icon(Icons.category_outlined),
-                  label: const Text("Manage Categories"),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade400),
-                  onPressed: _signOut,
-                  child: const Text("Sign Out"),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -301,6 +254,7 @@ class _ProfilePageState extends State<ProfilePage> {
         }
         return ListView.builder(
           shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: accounts.length,
           itemBuilder: (context, index) {
             final account = accounts[index];
@@ -315,15 +269,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 onTap: () async {
-                  final bool? result = await Navigator.of(context).push(
+                  await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) =>
                           EditAccountPage(user: widget.user, account: account),
                     ),
                   );
-                  if (result == true) {
-                    setState(() {});
-                  }
+                  // Refresh user accounts when returning
+                  setState(() {});
                 },
               ),
             );

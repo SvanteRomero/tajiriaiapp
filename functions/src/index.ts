@@ -7,6 +7,7 @@ import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {GoogleAuth} from "google-auth-library";
 import {VertexAI} from "@google-cloud/vertexai";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -516,3 +517,30 @@ export const deleteAbandonedGoals = onSchedule(
     console.log("Finished deleting abandoned goals.");
   }
 );
+
+export const sendWelcomeNotification = onDocumentCreated("users/{userId}", async (event) => {
+  const user = event.data?.data();
+  const userId = event.params.userId;
+
+  if (!user) {
+    console.log("No user data found.");
+    return;
+  }
+  
+  const payload = {
+    notification: {
+      title: `Welcome to Tajiri AI, ${user.displayName || "friend"}!`,
+      body: "We're excited to help you on your financial journey. Let's get started!",
+    },
+    // You would typically use a device token to send to a specific user
+    // For now, we can use a topic that all users subscribe to.
+    topic: "all_users",
+  };
+
+  try {
+    await admin.messaging().send(payload);
+    console.log(`Successfully sent welcome message to user ${userId}`);
+  } catch (error) {
+    console.error("Error sending welcome notification:", error);
+  }
+});

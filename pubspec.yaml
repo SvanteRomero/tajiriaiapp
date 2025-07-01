@@ -15,6 +15,7 @@ dependencies:
   firebase_auth:
   cloud_firestore:
   cloud_functions:
+  firebase_messaging:
   firebase_storage:
   google_sign_in:
 
@@ -33,6 +34,7 @@ dependencies:
   connectivity_plus: 
   firebase_app_check: ^0.3.2+7
   flutter_colorpicker: ^1.1.0
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

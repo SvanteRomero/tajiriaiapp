@@ -9,16 +9,20 @@ import 'package:provider/provider.dart';
 import '/features/advisor_chat/viewmodel/advisor_chat_viewmodel.dart';
 import '/screens/auth/login_page.dart';
 import '/screens/home_page.dart';
+import 'core/services/notification_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
   // Ensure that Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize the notification service
+  await NotificationService().initialize();
 
   // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(
@@ -30,7 +34,6 @@ void main() async {
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.debug,
   );
-
 
   runApp(
     MultiProvider(
@@ -48,51 +51,52 @@ class TajiriAiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    
+
     return MaterialApp(
       title: 'Tajiri AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.light,
-        ),
-        textTheme: GoogleFonts.poppinsTextTheme(textTheme),
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
-          elevation: 0,
-          titleTextStyle: GoogleFonts.poppins(
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.deepPurple,
+            brightness: Brightness.light,
           ),
-        ),
-        scaffoldBackgroundColor: Colors.grey[50],
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.grey.shade200,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+          textTheme: GoogleFonts.poppinsTextTheme(textTheme),
+          appBarTheme: AppBarTheme(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black87,
+            elevation: 0,
+            titleTextStyle: GoogleFonts.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
           ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold)
-          )
-        )
-      ),
+          scaffoldBackgroundColor: Colors.grey[50],
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.grey.shade200,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  textStyle:
+                      GoogleFonts.poppins(fontWeight: FontWeight.bold)))),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, authSnapshot) {
           if (authSnapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            return const Scaffold(
+                body: Center(child: CircularProgressIndicator()));
           }
           if (authSnapshot.hasData) {
             return HomePage(user: authSnapshot.data!);
