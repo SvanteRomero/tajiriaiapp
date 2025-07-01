@@ -398,6 +398,7 @@ export const processDailyGoals = onSchedule(
 
     for (const userDoc of usersSnapshot.docs) {
       const userId = userDoc.id;
+      const user = userDoc.data();
       const goalsRef = usersRef.doc(userId).collection("goals");
       const activeGoalsSnapshot = await goalsRef.where("status", "==", "active").get();
 
@@ -467,6 +468,22 @@ export const processDailyGoals = onSchedule(
           status: dailyStatus,
           comment: dailyStatus === "success" ? `Well done, ${savedAmountToday.toFixed(2)} saved!` : `Overspent by ${(totalSpentToday - dailyLimit).toFixed(2)}.`,
         });
+
+        // Send a notification if the user has enabled goal notifications
+        if (user.goalNotifications) {
+          const payload = {
+            notification: {
+              title: `Daily Goal Update: ${goalData.goal_name}`,
+              body: `You spent ${totalSpentToday.toFixed(2)} today. Your new balance is ${newSavedAmount.toFixed(2)}.`,
+            },
+            topic: userId,
+          };
+          try {
+            await admin.messaging().send(payload);
+          } catch (error) {
+            console.error("Error sending goal notification:", error);
+          }
+        }
       }
     }
     console.log("Daily goal processing finished.");
@@ -526,21 +543,196 @@ export const sendWelcomeNotification = onDocumentCreated("users/{userId}", async
     console.log("No user data found.");
     return;
   }
-  
-  const payload = {
-    notification: {
-      title: `Welcome to Tajiri AI, ${user.displayName || "friend"}!`,
-      body: "We're excited to help you on your financial journey. Let's get started!",
-    },
-    // You would typically use a device token to send to a specific user
-    // For now, we can use a topic that all users subscribe to.
-    topic: "all_users",
-  };
 
-  try {
-    await admin.messaging().send(payload);
-    console.log(`Successfully sent welcome message to user ${userId}`);
-  } catch (error) {
-    console.error("Error sending welcome notification:", error);
+  // Only send a welcome notification if the user has enabled financial tips
+  if (user.financialTips) {
+    const payload = {
+      notification: {
+        title: `Welcome to Tajiri AI, ${user.displayName || "friend"}!`,
+        body: "We're excited to help you on your financial journey. Let's get started!",
+      },
+      topic: userId,
+    };
+
+    try {
+      await admin.messaging().send(payload);
+      console.log(`Successfully sent welcome message to user ${userId}`);
+    } catch (error) {
+      console.error("Error sending welcome notification:", error);
+    }
   }
 });
+
+// New function to send notifications for large transactions
+export const sendTransactionalNotification = onDocumentCreated("users/{userId}/transactions/{transactionId}", async (event) => {
+  const transaction = event.data?.data();
+  const userId = event.params.userId;
+
+  if (!transaction) {
+    console.log("No transaction data found.");
+    return;
+  }
+
+  const userDoc = await db.collection("users").doc(userId).get();
+  const user = userDoc.data();
+
+  if (user && user.transactionalNotifications && transaction.amount > 1000) {
+    const payload = {
+      notification: {
+        title: "Large Transaction Alert",
+        body: `A new transaction of ${transaction.currency} ${transaction.amount.toFixed(2)} for "${transaction.description}" has been recorded.`,
+      },
+      topic: userId,
+    };
+    try {
+      await admin.messaging().send(payload);
+    } catch (error) {
+      console.error("Error sending transaction notification:", error);
+    }
+  }
+});
+
+// New function to send weekly financial summaries
+export const sendWeeklySummary = onSchedule(
+  {
+    schedule: "every sunday 09:00",
+    timeZone: "Africa/Dar_es_Salaam",
+  },
+  async () => {
+    console.log("Running weekly summary function...");
+
+    const usersRef = db.collection("users");
+    const usersSnapshot = await usersRef.get();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+      const user = userDoc.data();
+
+      if (user.financialSummaries) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const sevenDaysAgoTimestamp = admin.firestore.Timestamp.fromDate(sevenDaysAgo);
+
+        const expensesSnapshot = await db
+          .collection("users").doc(userId).collection("transactions")
+          .where("type", "==", "expense")
+          .where("date", ">=", sevenDaysAgoTimestamp)
+          .get();
+
+        const incomeSnapshot = await db
+          .collection("users").doc(userId).collection("transactions")
+          .where("type", "==", "income")
+          .where("date", ">=", sevenDaysAgoTimestamp)
+          .get();
+
+        const totalExpense = expensesSnapshot.docs.reduce((acc, exp) => acc + exp.data().amount, 0);
+        const totalIncome = incomeSnapshot.docs.reduce((acc, inc) => acc + inc.data().amount, 0);
+
+        const payload = {
+          notification: {
+            title: "Your Weekly Financial Summary",
+            body: `Last week, you spent ${totalExpense.toFixed(2)} and earned ${totalIncome.toFixed(2)}.`,
+          },
+          topic: userId,
+        };
+        try {
+          await admin.messaging().send(payload);
+        } catch (error) {
+          console.error("Error sending weekly summary:", error);
+        }
+      }
+    }
+  });
+
+// New function to send personalized financial tips
+export const sendFinancialTip = onSchedule(
+  {
+    schedule: "every monday 10:00",
+    timeZone: "Africa/Dar_es_Salaam",
+  },
+  async () => {
+    console.log("Running financial tip function...");
+
+    const usersRef = db.collection("users");
+    const usersSnapshot = await usersRef.get();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+      const user = userDoc.data();
+
+      if (user.financialTips) {
+        // This is a placeholder for a more sophisticated system.
+        // In a real application, you would use a more advanced system to generate personalized tips.
+        const tips = [
+          "Set a budget and stick to it.",
+          "Automate your savings.",
+          "Pay off your high-interest debt first.",
+          "Review your subscriptions and cancel any you don't use.",
+        ];
+        const tip = tips[Math.floor(Math.random() * tips.length)];
+
+        const payload = {
+          notification: {
+            title: "Your Weekly Financial Tip",
+            body: tip,
+          },
+          topic: userId,
+        };
+        try {
+          await admin.messaging().send(payload);
+        } catch (error) {
+          console.error("Error sending financial tip:", error);
+        }
+      }
+    }
+  }
+);
+export const sendChatNudgeNotification = onSchedule(
+  {
+    schedule: "every 8 hours", 
+    timeZone: "Africa/Dar_es_Salaam", // EAT
+  },
+  async () => {
+    console.log("Running scheduled function to nudge users to chat...");
+
+    const usersSnapshot = await db.collection("users").get();
+
+    // A list of friendly, varied messages
+    const nudgeMessages = [
+      "Have a financial question on your mind? Your AI advisor is here to help.",
+      "Curious about your spending habits or how to save more? Ask Tajiri!",
+      "It's a great day to check in on your financial goals. Ask your AI advisor for tips!",
+    ];
+
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+      const user = userDoc.data();
+
+      // Only send if the user has this specific notification setting enabled
+      if (user && user.personalizedAlerts) {
+        // Pick a random message from the list
+        const messageBody = nudgeMessages[Math.floor(Math.random() * nudgeMessages.length)];
+
+        const payload = {
+          notification: {
+            title: "Got a Question? 💬",
+            body: messageBody,
+          },
+          // Add a payload so the app knows where to navigate
+          data: {
+            "payload": "open_chat",
+          },
+          topic: userId, // Target the specific user
+        };
+
+        try {
+          await admin.messaging().send(payload);
+          console.log(`Successfully sent chat nudge to user ${userId}`);
+        } catch (error) {
+          console.error(`Error sending chat nudge to user ${userId}:`, error);
+        }
+      }
+    }
+    console.log("Finished sending chat nudges.");
+  }
+);

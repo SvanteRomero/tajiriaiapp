@@ -5,12 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../manage/manage_categories_page.dart';
 import '/core/models/account_model.dart';
 import '/core/models/transaction_model.dart';
 import '/core/utils/snackbar_utils.dart';
 import '/core/services/firestore_service.dart';
 import '/core/models/user_category_model.dart';
-import '../manage/manage_categories_page.dart';
+import '/core/services/notification_service.dart';
 
 class AddTransactionPage extends StatefulWidget {
   final User user;
@@ -82,16 +83,19 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     try {
       if (_selectedType == TransactionType.transfer) {
         if (_selectedFromAccount == null || _selectedToAccount == null) {
-          showCustomSnackbar(context, 'Please select both accounts.', type: SnackbarType.error);
+          showCustomSnackbar(context, 'Please select both accounts.',
+              type: SnackbarType.error);
           setState(() => _isLoading = false);
           return;
         }
         if (_selectedFromAccount!.currency != _selectedToAccount!.currency) {
-          showCustomSnackbar(context, 'Accounts must have the same currency for transfers.', type: SnackbarType.error);
+          showCustomSnackbar(
+              context, 'Accounts must have the same currency for transfers.',
+              type: SnackbarType.error);
           setState(() => _isLoading = false);
           return;
         }
-        
+
         // Call the updated service method for transfers
         await _firestoreService.addTransferTransaction(
           widget.user.uid,
@@ -102,14 +106,16 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         );
       } else {
         if (_selectedFromAccount == null) {
-            showCustomSnackbar(context, 'Please select an account.', type: SnackbarType.error);
-            setState(() => _isLoading = false);
-            return;
+          showCustomSnackbar(context, 'Please select an account.',
+              type: SnackbarType.error);
+          setState(() => _isLoading = false);
+          return;
         }
         if (_selectedCategory == null) {
-            showCustomSnackbar(context, 'Please select a category.', type: SnackbarType.error);
-            setState(() => _isLoading = false);
-            return;
+          showCustomSnackbar(context, 'Please select a category.',
+              type: SnackbarType.error);
+          setState(() => _isLoading = false);
+          return;
         }
         final transaction = TransactionModel(
           accountId: _selectedFromAccount!.id,
@@ -120,11 +126,11 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           category: _selectedCategory!,
           currency: _selectedFromAccount!.currency,
         );
-        
+
         if (_isOffline) {
-            _firestoreService.addTransaction(widget.user.uid, transaction);
+          _firestoreService.addTransaction(widget.user.uid, transaction);
         } else {
-            await _firestoreService.addTransaction(widget.user.uid, transaction);
+          await _firestoreService.addTransaction(widget.user.uid, transaction);
         }
       }
 
@@ -134,15 +140,54 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             : 'Transaction saved successfully!';
         showCustomSnackbar(context, message);
         Navigator.of(context).pop();
+
+        if (_selectedType == TransactionType.expense) {
+          _checkBudgetAndNotify();
+        }
       }
     } catch (e, s) {
       _logger.severe('Failed to save transaction', e, s);
       if (mounted) {
-        showCustomSnackbar(context, 'Error saving transaction. Please try again.', type: SnackbarType.error);
+        showCustomSnackbar(
+            context, 'Error saving transaction. Please try again.',
+            type: SnackbarType.error);
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _checkBudgetAndNotify() async {
+    final budgets = await _firestoreService.getBudgets(widget.user.uid).first;
+    final budget = budgets.firstWhere(
+        (b) => b.category == _selectedCategory,
+        orElse: () => null!);
+
+    if (budget != null) {
+      final transactions =
+          await _firestoreService.getTransactions(widget.user.uid).first;
+      final now = DateTime.now();
+      final monthlyExpenses = transactions.where((t) =>
+          t.type == TransactionType.expense &&
+          t.category == _selectedCategory &&
+          t.date.month == now.month &&
+          t.date.year == now.year);
+
+      final totalSpent =
+          monthlyExpenses.fold(0.0, (sum, item) => sum + item.amount);
+
+      if (totalSpent >= budget.amount * 0.9 && totalSpent < budget.amount) {
+        NotificationService().showNotification(
+            title: 'Budget Alert',
+            body:
+                'You have spent ${totalSpent.toStringAsFixed(2)} of your ${budget.amount.toStringAsFixed(2)} budget for $_selectedCategory.', payload: '');
+      } else if (totalSpent >= budget.amount) {
+        NotificationService().showNotification(
+            title: 'Budget Exceeded',
+            body:
+                'You have exceeded your budget for $_selectedCategory by ${(totalSpent - budget.amount).toStringAsFixed(2)}.', payload: '');
       }
     }
   }
@@ -162,14 +207,15 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               const SizedBox(height: 20),
               _buildAccountSelectors(),
               const SizedBox(height: 16),
-              
+
               // Conditionally show description for non-transfer types
               if (_selectedType != TransactionType.transfer)
                 TextFormField(
                     controller: _descriptionController,
                     decoration: const InputDecoration(labelText: "Description"),
-                    validator: (value) =>
-                        value!.isEmpty ? 'Please enter a description' : null),
+                    validator: (value) => value!.isEmpty
+                        ? 'Please enter a description'
+                        : null),
 
               const SizedBox(height: 16),
               TextFormField(
@@ -272,7 +318,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           if (isFrom) {
             _selectedFromAccount = newValue;
             if (_selectedToAccount?.id == newValue?.id) {
-                _selectedToAccount = null;
+              _selectedToAccount = null;
             }
           } else {
             _selectedToAccount = newValue;

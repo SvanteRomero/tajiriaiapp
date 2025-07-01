@@ -1,11 +1,15 @@
+// lib/screens/home_page.dart
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'advisory.dart';
 import 'analytics.dart';
 import 'dashboard_page.dart';
 import 'profile_page.dart';
-import '/screens/add/add_transaction_page.dart';
-import 'budget_n_goals_page.dart'; // Import the MyGoalsPage
+import 'add/add_transaction_page.dart';
+import 'budget_n_goals_page.dart';
+import '/core/services/notification_service.dart';
 
 class HomePage extends StatefulWidget {
   final User user;
@@ -17,7 +21,74 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  static const List<String> _pageTitles = ["Dashboard", "Analytics", "Goals and Budgets", "Tajiri Wangu"];
+  static const List<String> _pageTitles = [
+    "Dashboard",
+    "Analytics",
+    "Goals and Budgets",
+    "Tajiri Wangu"
+  ];
+  late final StreamSubscription<String?> _notificationTapSubscription;
+  late final StreamSubscription<List<ConnectivityResult>>
+      _connectivitySubscription;
+  bool _isOffline = false;
+  bool _chatNudgeShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final notificationService = NotificationService();
+
+    // Schedule the local daily reminder to log expenses
+    notificationService.scheduleDailyReminderNotification();
+
+    // Listen for notification taps
+    _notificationTapSubscription =
+        notificationService.onNotificationTap.stream.listen((payload) {
+      if (!mounted) return;
+
+      // --- Handle "Add Transaction" payload ---
+      if (payload == 'add_transaction') {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AddTransactionPage(user: widget.user),
+          ),
+        );
+      }
+
+      // --- NEW: Handle "Open Chat" payload ---
+      if (payload == 'open_chat') {
+        _onItemTapped(3); // Navigate to the Advisory page (index 3)
+      }
+    });
+
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((connectivityResult) {
+      final isOffline = connectivityResult.contains(ConnectivityResult.none);
+      if (mounted) {
+        setState(() {
+          _isOffline = isOffline;
+        });
+      }
+    });
+
+    // Initial connectivity check
+    Connectivity().checkConnectivity().then((connectivityResult) {
+       final isOffline = connectivityResult.contains(ConnectivityResult.none);
+      if (mounted) {
+        setState(() {
+          _isOffline = isOffline;
+        });
+      }
+    });
+  }
+
+
+  @override
+  void dispose() {
+    _notificationTapSubscription.cancel();
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -30,23 +101,22 @@ class _HomePageState extends State<HomePage> {
     final List<Widget> pages = [
       DashboardPage(user: widget.user),
       AnalyticsPage(user: widget.user),
-      MyGoalsPage(user: widget.user), // MyGoalsPage is now at index 2
-      AdvisoryPage(user: widget.user), // AdvisoryPage is now at index 3
+      MyGoalsPage(user: widget.user),
+      AdvisoryPage(user: widget.user),
     ];
 
-    // Determine if the FloatingActionButton should be visible
-    final bool showAddTransactionButton = _selectedIndex != 3; // Hide on Advisory page (index 3)
+    final bool showAddTransactionButton = _selectedIndex != 3;
 
     return Scaffold(
       appBar: AppBar(
-        // Add null-aware operator to handle potential null string (defensive programming)
-        title: Text(_pageTitles[_selectedIndex] ?? ''),
+        title: Text(_pageTitles[_selectedIndex]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.account_circle_sharp),
+            icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ProfilePage(user: widget.user)),
+                MaterialPageRoute(
+                    builder: (_) => ProfilePage(user: widget.user)),
               );
             },
           ),
@@ -60,7 +130,8 @@ class _HomePageState extends State<HomePage> {
           ? FloatingActionButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => AddTransactionPage(user: widget.user)),
+                  MaterialPageRoute(
+                      builder: (_) => AddTransactionPage(user: widget.user)),
                 );
               },
               backgroundColor: Colors.deepPurple,
@@ -73,9 +144,8 @@ class _HomePageState extends State<HomePage> {
         shape: const CircularNotchedRectangle(),
         notchMargin: 8.0,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Use spaceBetween for even distribution
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            // Left half of the bottom navigation bar
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -85,15 +155,13 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            // Spacer for the FloatingActionButton
-            const SizedBox(width: 48), // Ensure this matches the FAB's size
-            // Right half of the bottom navigation bar
+            const SizedBox(width: 48),
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildNavItem(Icons.flag_rounded, "Goals", 2), // Goals nav item at index 2
-                  _buildNavItem(Icons.model_training_rounded, "AI Advisor", 3), // AI Advisor nav item at index 3
+                  _buildNavItem(Icons.flag_rounded, "Goals", 2),
+                  _buildNavItem(Icons.model_training_rounded, "AI Advisor", 3),
                 ],
               ),
             ),
@@ -107,7 +175,10 @@ class _HomePageState extends State<HomePage> {
     final bool isSelected = _selectedIndex == index;
     return IconButton(
       tooltip: label,
-      icon: Icon(icon, color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade500),
+      icon: Icon(icon,
+          color: isSelected
+              ? Theme.of(context).primaryColor
+              : Colors.grey.shade500),
       onPressed: () => _onItemTapped(index),
     );
   }
