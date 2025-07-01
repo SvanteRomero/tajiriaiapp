@@ -151,7 +151,7 @@ export const getAdvisoryMessage = onCall(async (request: CallableRequest) => {
   const projectId = await auth.getProjectId();
   const location = "us-central1";
   const vertexAI = new VertexAI({project: projectId, location: location});
-  const generativeModel = vertexAI.preview.getGenerativeModel({model: "gemini-2.5-pro"});
+  const generativeModel = vertexAI.preview.getGenerativeModel({model: "gemini-1.5-pro"});
 
   // --- 1. Fetch User's Custom Categories from Firestore ---
   const categoriesSnapshot = await db.collection("users").doc(userId).collection("categories").get();
@@ -385,6 +385,83 @@ export const suggestDailyLimit = onCall(async (request: CallableRequest) => {
   return {reply: aiResponse};
 });
 
+
+/**
+ * Checks if a user has crossed a savings goal milestone and sends a notification.
+ * @param {string} userId The user's ID.
+ * @param {any} user The user's data object.
+ * @param {any} goalData The goal data object.
+ * @param {number} oldSavedAmount The amount saved before the update.
+ * @param {number} newSavedAmount The amount saved after the update.
+ */
+async function checkAndSendMilestoneNotification(userId: string, user: any, goalData: any, oldSavedAmount: number, newSavedAmount: number) {
+  const targetAmount = goalData.target_amount;
+  const milestones = [0.25, 0.50, 0.75, 1.0]; // 25%, 50%, 75%, 100%
+
+  for (const milestone of milestones) {
+    const milestoneAmount = targetAmount * milestone;
+    // Check if the user just crossed this milestone
+    if (oldSavedAmount < milestoneAmount && newSavedAmount >= milestoneAmount) {
+      const percentage = milestone * 100;
+      let title = `You've hit ${percentage}% of your goal! 🎉`;
+      let body = `Amazing work on your '${goalData.goal_name}' goal. You're getting closer!`;
+
+      if (milestone === 1.0) {
+        title = "Goal Complete! 🏆";
+        body = `Congratulations! You've successfully reached your goal of saving for '${goalData.goal_name}'!`;
+      }
+
+      const payload = {
+        notification: {title, body},
+        data: {"payload": `view_goal_${goalData.id}`}, // Navigate to the specific goal
+        topic: userId,
+      };
+
+      if (user && user.goalNotifications) {
+        try {
+          await admin.messaging().send(payload);
+          console.log(`Sent milestone notification to ${userId} for ${percentage}%`);
+        } catch (error) {
+          console.error("Error sending milestone notification:", error);
+        }
+      }
+      // Stop after sending the first milestone notification to avoid spam
+      return;
+    }
+  }
+}
+
+/**
+ * Checks if a user has hit a logging streak and sends a notification.
+ * @param {string} userId The user's ID.
+ * @param {any} user The user's data object.
+ * @param {number} streakCount The new streak count.
+ */
+async function checkAndSendStreakNotification(userId: string, user: any, streakCount: number) {
+  // Streaks we want to celebrate
+  const streakMilestones = [7, 14, 30, 60, 100];
+
+  if (streakMilestones.includes(streakCount)) {
+    const payload = {
+      notification: {
+        title: "New Logging Streak! 🔥",
+        body: `You've logged your expenses for ${streakCount} days in a row. That's some serious dedication!`,
+      },
+      topic: userId,
+    };
+
+    if (user && user.goalNotifications) { // We can reuse the goalNotifications setting
+      try {
+        await admin.messaging().send(payload);
+        console.log(`Sent streak notification to ${userId} for ${streakCount} days`);
+      } catch (error) {
+        console.error("Error sending streak notification:", error);
+      }
+    }
+  }
+}
+
+
 export const processDailyGoals = onSchedule(
   {
     schedule: "every day 00:05",
@@ -405,6 +482,7 @@ export const processDailyGoals = onSchedule(
       for (const goalDoc of activeGoalsSnapshot.docs) {
         const goalData = goalDoc.data();
         const goalId = goalDoc.id;
+        goalData.id = goalId; // Add the ID to the data object for the payload
 
         const dailyLimit = goalData.daily_limit;
         const timezone = goalData.timezone || "Africa/Dar_es_Salaam";
@@ -434,6 +512,7 @@ export const processDailyGoals = onSchedule(
 
         let savedAmountToday = 0;
         let dailyStatus = "skipped";
+        const oldStreak = goalData.streak_count || 0;
 
         const goalStartDate = goalData.start_date.toDate();
         const isFirstDay = userTimeZoneDate.toDateString() === goalStartDate.toDateString();
@@ -450,7 +529,16 @@ export const processDailyGoals = onSchedule(
           }
         }
 
-        const newSavedAmount = (goalData.saved_amount || 0) + savedAmountToday;
+        // --- Milestone & Streak Logic ---
+        const oldSavedAmount = goalData.saved_amount || 0;
+        const newSavedAmount = oldSavedAmount + savedAmountToday;
+        await checkAndSendMilestoneNotification(userId, user, goalData, oldSavedAmount, newSavedAmount);
+        // Check for streak only if it increased
+        if (goalData.streak_count > oldStreak) {
+          await checkAndSendStreakNotification(userId, user, goalData.streak_count);
+        }
+        // --- End Milestone & Streak Logic ---
+
         const newGoalStatus = newSavedAmount >= goalData.target_amount ? "completed" : goalData.status;
 
         await goalsRef.doc(goalId).update({
@@ -469,7 +557,7 @@ export const processDailyGoals = onSchedule(
           comment: dailyStatus === "success" ? `Well done, ${savedAmountToday.toFixed(2)} saved!` : `Overspent by ${(totalSpentToday - dailyLimit).toFixed(2)}.`,
         });
 
-        // Send a notification if the user has enabled goal notifications
+        // The old daily notification logic remains unchanged
         if (user.goalNotifications) {
           const payload = {
             notification: {
@@ -685,11 +773,12 @@ export const sendFinancialTip = onSchedule(
         }
       }
     }
-  }
-);
+  });
+
 export const sendChatNudgeNotification = onSchedule(
+  // Runs every 3 days at 11:00 AM
   {
-    schedule: "every 8 hours", 
+    schedule: "every 72 hours",
     timeZone: "Africa/Dar_es_Salaam", // EAT
   },
   async () => {

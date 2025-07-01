@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:tajiri_ai/core/models/goal_model.dart';
+import 'package:tajiri_ai/core/services/firestore_service.dart';
+import '/screens/details/goal_details_page.dart';
 import 'advisory.dart';
 import 'analytics.dart';
 import 'dashboard_page.dart';
 import 'profile_page.dart';
-import 'add/add_transaction_page.dart';
+import '/screens/add/add_transaction_page.dart';
 import 'budget_n_goals_page.dart';
 import '/core/services/notification_service.dart';
 
@@ -31,20 +34,20 @@ class _HomePageState extends State<HomePage> {
   late final StreamSubscription<List<ConnectivityResult>>
       _connectivitySubscription;
   bool _isOffline = false;
-  bool _chatNudgeShown = false;
 
   @override
   void initState() {
     super.initState();
     final notificationService = NotificationService();
+    final firestoreService = FirestoreService();
 
     // Schedule the local daily reminder to log expenses
     notificationService.scheduleDailyReminderNotification();
 
     // Listen for notification taps
     _notificationTapSubscription =
-        notificationService.onNotificationTap.stream.listen((payload) {
-      if (!mounted) return;
+        notificationService.onNotificationTap.stream.listen((payload) async {
+      if (!mounted || payload == null) return;
 
       // --- Handle "Add Transaction" payload ---
       if (payload == 'add_transaction') {
@@ -55,9 +58,28 @@ class _HomePageState extends State<HomePage> {
         );
       }
 
-      // --- NEW: Handle "Open Chat" payload ---
+      // --- Handle "Open Chat" payload ---
       if (payload == 'open_chat') {
         _onItemTapped(3); // Navigate to the Advisory page (index 3)
+      }
+
+      // --- Handle "View Goal" payload ---
+      if (payload.startsWith('view_goal_')) {
+        final goalId = payload.split('_').last;
+        try {
+          // Fetch the specific goal from Firestore
+          final Goal? goal =
+              await firestoreService.getGoalById(widget.user.uid, goalId);
+          if (goal != null && mounted) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => GoalDetailsPage(user: widget.user, goal: goal),
+              ),
+            );
+          }
+        } catch (e) {
+          print("Error fetching goal for notification: $e");
+        }
       }
     });
 
@@ -112,7 +134,7 @@ class _HomePageState extends State<HomePage> {
         title: Text(_pageTitles[_selectedIndex]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.account_circle_sharp),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(

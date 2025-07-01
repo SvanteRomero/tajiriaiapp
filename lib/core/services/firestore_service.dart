@@ -378,4 +378,19 @@ class FirestoreService {
         .map((doc) => UserModel.fromFirestore(doc));
   }
 
+    /// Fetches a single goal by its ID for a given user.
+  Future<Goal?> getGoalById(String userId, String goalId) async {
+    try {
+      final doc =
+          await _db.collection('users').doc(userId).collection('goals').doc(goalId).get();
+      if (doc.exists) {
+        return Goal.fromFirestore(doc);
+      }
+      return null;
+    } catch (e) {
+      print("Error fetching goal by ID: $e");
+      return null;
+    }
+  }
+
 }

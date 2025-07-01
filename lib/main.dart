@@ -3,20 +3,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:tajiri_ai/core/constants/app_theme.dart';
+import 'package:tajiri_ai/core/viewmodels/theme_provider.dart';
 import '/features/advisor_chat/viewmodel/advisor_chat_viewmodel.dart';
 import '/screens/auth/login_page.dart';
 import '/screens/home_page.dart';
 import 'core/services/notification_service.dart';
 import 'firebase_options.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
+// Define the GlobalKey for the navigator
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// Handler for background FCM messages
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print("Handling a background message: ${message.messageId}");
 }
 
@@ -29,6 +33,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Set up background message handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // Initialize the notification service
@@ -37,10 +42,10 @@ void main() async {
   // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED, // Use unlimited cache size
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Activate App Check
+  // Activate App Check for security
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.debug,
   );
@@ -48,7 +53,10 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        // Provides the AI chat functionality
         ChangeNotifierProvider(create: (_) => AdvisorChatViewModel()),
+        // Provides the theme (light/dark mode) functionality
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const TajiriAiApp(),
     ),
@@ -60,48 +68,18 @@ class TajiriAiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    // Watch for theme changes here
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
-      navigatorKey: navigatorKey,
+      navigatorKey: navigatorKey, // Set the navigator key
       title: 'Tajiri AI',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
-            brightness: Brightness.light,
-          ),
-          textTheme: GoogleFonts.poppinsTextTheme(textTheme),
-          appBarTheme: AppBarTheme(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
-            elevation: 0,
-            titleTextStyle: GoogleFonts.poppins(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          scaffoldBackgroundColor: Colors.grey[50],
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.grey.shade200,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  textStyle:
-                      GoogleFonts.poppins(fontWeight: FontWeight.bold)))),
+      // Apply the light and dark themes
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      // Use the current theme mode from the provider
+      themeMode: themeProvider.themeMode,
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, authSnapshot) {
