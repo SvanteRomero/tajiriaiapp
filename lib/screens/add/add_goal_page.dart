@@ -7,7 +7,6 @@ import '/core/services/firestore_service.dart';
 import '/core/services/ai_advisor_service.dart';
 import '/core/utils/snackbar_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '/core/models/account_model.dart';
 
 class AddGoalPage extends StatefulWidget {
   final User user;

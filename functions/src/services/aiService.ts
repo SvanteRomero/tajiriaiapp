@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // functions/services/aiService.ts
 import {GoogleAuth} from "google-auth-library";
 import {VertexAI} from "@google-cloud/vertexai";
-import * as admin from "firebase-admin"; // Needed for admin.firestore.Timestamp
-import {firestoreService} from "./firestoreService"; // Import firestoreService
+import * as admin from "firebase-admin";
+import {firestoreService} from "./firestoreService"; // Ensure this import is present
 
 export const aiService = {
   async getGenerativeModel() {
@@ -10,7 +11,7 @@ export const aiService = {
     const projectId = await auth.getProjectId();
     const location = "us-central1"; // Or your preferred region
     const vertexAI = new VertexAI({project: projectId, location: location});
-    return vertexAI.preview.getGenerativeModel({model: "gemini-2.5-pro"});
+    return vertexAI.preview.getGenerativeModel({model: "gemini-1.5-pro"});
   },
 
   /**
@@ -18,7 +19,7 @@ export const aiService = {
    * @param {string} userMessage The raw user message.
    * @return {Promise<any>} Parsed intent data.
    */
-  async getIntentAndEntities(userMessage: string) { // Removed userCategories as it's not directly needed for intent extraction here
+  async getIntentAndEntities(userMessage: string) {
     const generativeModel = await this.getGenerativeModel();
 
     const intentPrompt = `
@@ -101,8 +102,73 @@ export const aiService = {
     if (totalSpending === 0) {
       return "I can't suggest a daily limit because you haven't recorded any expenses in the last 30 days. Start by tracking your spending to get a clearer picture!";
     } else {
-      // You might want to fetch the user's primary currency here for a more accurate suggestion.
       return `Based on your average daily spending of ${suggestedLimit.toFixed(2)} over the last month, a reasonable daily limit for your goal could be around ${suggestedLimit.toFixed(2)}. You can adjust this based on how fast you want to save!`;
     }
+  },
+
+  /**
+   * Generates a personalized financial tip based on user's financial data.
+   * @param {string} userId The user's ID.
+   * @param {object} financialData User's financial data including transactions, budgets, goals.
+   * @returns {Promise<string>} A personalized financial tip.
+   */
+  // CORRECTED: Changed the type of 'categories' in financialData to a map.
+  async getPersonalizedFinancialTip(userId: string, financialData: { transactions: any[], budgets: any[], goals: any[], categories: { [key: string]: { type: "income" | "expense"; keywords: string[]; } } }) {
+    const generativeModel = await this.getGenerativeModel();
+
+    const {transactions, budgets, goals, categories} = financialData;
+
+    // Summarize transactions
+    const spendingSummary: { [category: string]: number } = {};
+    const incomeSummary: { [category: string]: number } = {};
+    const recentTransactions = transactions.slice(0, 10); // Focus on recent activity
+
+    recentTransactions.forEach((t) => {
+      if (t.type === "expense") {
+        spendingSummary[t.category] = (spendingSummary[t.category] || 0) + t.amount;
+      } else if (t.type === "income") {
+        incomeSummary[t.category] = (incomeSummary[t.category] || 0) + t.amount;
+      }
+    });
+
+    const spendingText = Object.entries(spendingSummary).map(([cat, amount]) => `${cat}: ${amount.toFixed(2)}`).join(", ");
+    const incomeText = Object.entries(incomeSummary).map(([cat, amount]) => `${cat}: ${amount.toFixed(2)}`).join(", ");
+
+    // Summarize budgets
+    const budgetText = budgets.map((b) => `Budget for ${b.category}: ${b.amount.toFixed(2)}`).join(", ");
+
+    // Summarize goals
+    const goalText = goals.map((g) => `Goal '${g.goal_name}': Target ${g.target_amount.toFixed(2)}, Saved ${g.saved_amount.toFixed(2)}, Daily Limit ${g.daily_limit.toFixed(2)}, Ends ${g.end_date.toDate().toLocaleDateString()}`).join("; ");
+
+    // Summarize categories (newly added to prompt context)
+    const categoriesText = Object.entries(categories).map(([name, data]) => `${name} (Type: ${data.type})`).join(", ");
+
+
+    const prompt = `
+    Based on the following financial data for the user (amounts are in their local currency unless specified):
+
+    Recent Spending Categories: ${spendingText || "No recent spending."}
+    Recent Income Categories: ${incomeText || "No recent income."}
+    Current Budgets: ${budgetText || "No active budgets."}
+    Active Goals: ${goalText || "No active goals."}
+    User's Custom Categories: ${categoriesText || "No custom categories."}
+
+    Provide ONE personalized and actionable financial tip (max 2-3 sentences).
+    Focus on practical advice, such as:
+    - Identifying a potential overspending area and suggesting a small, actionable change.
+    - Encouraging progress on a specific goal.
+    - Suggesting reviewing subscriptions if applicable based on categories.
+    - Simple saving hacks related to their spending.
+    - Avoid generic statements like "save money" or "budget wisely".
+    - Make it direct and encouraging.
+
+    Example Tip Format: "We noticed you spent a bit much on [category]. Try [specific action] to save [small amount/percentage]."
+    `;
+
+    const result = await generativeModel.generateContent(prompt);
+    if (!result.response.candidates || result.response.candidates.length === 0) {
+      return "I'm not able to generate a personalized tip right now. How about reviewing your common expenses?";
+    }
+    return result.response.candidates[0].content.parts[0].text ?? "Here's a general tip: track your spending regularly to understand where your money goes!";
   },
 };

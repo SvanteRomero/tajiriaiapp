@@ -1,35 +1,11 @@
-/* eslint-disable linebreak-style */
-/* eslint-disable valid-jsdoc */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable valid-jsdoc */
+// functions/services/firestoreService.ts
 import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
 export const firestoreService = {
-  /**
-   * Adds a new account for a user.
-   * @param {string} userId The user's ID.
-   * @param {any} accountData The account data (name, balance, currency).
-   * @returns {Promise<void>}
-   */
-  async addAccount(userId: string, accountData: any) {
-    const {name, balance, currency} = accountData;
-
-    // Optional: Check if an account with this name already exists for the user
-    const existingAccountSnapshot = await db.collection("users").doc(userId).collection("accounts")
-      .where("name", "==", name).limit(1).get();
-
-    if (!existingAccountSnapshot.empty) {
-      // You might want to throw an error or adjust the name
-      throw new Error(`Account with name '${name}' already exists.`);
-    }
-
-    await db.collection("users").doc(userId).collection("accounts").add({
-      name,
-      balance,
-      currency,
-    });
-  },
   /**
    * Creates a new transaction in Firestore for a given user and updates the account balance.
    * @param {string} userId - The ID of the user.
@@ -104,7 +80,7 @@ export const firestoreService = {
   /**
    * Fetches user's custom categories from Firestore.
    * @param {string} userId The user's ID.
-   * @returns {Promise<{[key: string]: {type: "income" | "expense", keywords: string[]}}>} User categories.
+   * @returns {Promise<Record<string, {type: "income" | "expense", keywords: string[]}>>} User categories.
    */
   async getUserCategories(userId: string) {
     const categoriesSnapshot = await db.collection("users").doc(userId).collection("categories").get();
@@ -136,7 +112,6 @@ export const firestoreService = {
     return {id: accountsSnapshot.docs[0].id, data: accountsSnapshot.docs[0].data()};
   },
 
-  // Add other Firestore related methods here, like getSpendingSummaryData, getBudget, etc.
   async getSpendingSummaryData(userId: string, startDate: Date, endDate: Date) {
     const expenseQuery = db
       .collection("users").doc(userId).collection("transactions")
@@ -197,5 +172,95 @@ export const firestoreService = {
 
   async deleteTransaction(userId: string, transactionId: string) {
     return db.collection("users").doc(userId).collection("transactions").doc(transactionId).delete();
+  },
+
+  /**
+   * Adds a new account for a user.
+   * @param {string} userId The user's ID.
+   * @param {any} accountData The account data (name, balance, currency).
+   * @return {Promise<void>}
+   */
+  async addAccount(userId: string, accountData: any) {
+    const {name, balance, currency} = accountData;
+
+    // Optional: Check if an account with this name already exists for the user
+    const existingAccountSnapshot = await db.collection("users").doc(userId).collection("accounts")
+      .where("name", "==", name).limit(1).get();
+
+    if (!existingAccountSnapshot.empty) {
+      throw new Error(`Account with name '${name}' already exists.`);
+    }
+
+    await db.collection("users").doc(userId).collection("accounts").add({
+      name,
+      balance,
+      currency,
+    });
+  },
+
+  /**
+   * Fetches recent transactions for a user from a given date.
+   * @param {string} userId The user's ID.
+   * @param {Date} fromDate The start date for fetching transactions.
+   * @return {Promise<any[]>} An array of recent transaction data.
+   */
+  async getRecentTransactions(userId: string, fromDate: Date) {
+    const fromTimestamp = admin.firestore.Timestamp.fromDate(fromDate);
+    const transactionsSnapshot = await db.collection("users").doc(userId).collection("transactions")
+      .where("date", ">=", fromTimestamp)
+      .orderBy("date", "desc") // Order by date to get truly "recent"
+      .limit(20) // Limit to a reasonable number for analysis
+      .get();
+    return transactionsSnapshot.docs.map((doc) => doc.data());
+  },
+
+  /**
+   * Fetches active goals for a user.
+   * @param {string} userId The user's ID.
+   * @return {Promise<any[]>} An array of active goal data with IDs.
+   */
+  async getActiveGoalsForUser(userId: string) {
+    const goalsSnapshot = await db.collection("users").doc(userId).collection("goals")
+      .where("status", "==", "active")
+      .get();
+    return goalsSnapshot.docs.map((doc) => ({id: doc.id, data: doc.data()}));
+  },
+
+  /**
+   * Fetches budgets for the current month for a user.
+   * @param {string} userId The user's ID.
+   * @return {Promise<any[]>} An array of current month's budget data with IDs.
+   */
+  async getCurrentMonthBudgets(userId: string) {
+    const now = new Date();
+    const budgetsSnapshot = await db.collection("users").doc(userId).collection("budgets")
+      .where("month", "==", now.getMonth() + 1)
+      .where("year", "==", now.getFullYear())
+      .get();
+    return budgetsSnapshot.docs.map((doc) => ({id: doc.id, data: doc.data()}));
+  },
+
+  async getUserTransactionsForTip(userId: string) {
+    const transactionsSnapshot = await db.collection("users").doc(userId).collection("transactions")
+      .orderBy("date", "desc")
+      .limit(20) // Get recent transactions for analysis
+      .get();
+    return transactionsSnapshot.docs.map((doc) => doc.data());
+  },
+
+  async getUserBudgetsForTip(userId: string) {
+    const now = new Date();
+    const budgetsSnapshot = await db.collection("users").doc(userId).collection("budgets")
+      .where("month", "==", now.getMonth() + 1)
+      .where("year", "==", now.getFullYear())
+      .get();
+    return budgetsSnapshot.docs.map((doc) => doc.data());
+  },
+
+  async getUserGoalsForTip(userId: string) {
+    const goalsSnapshot = await db.collection("users").doc(userId).collection("goals")
+      .where("status", "==", "active")
+      .get();
+    return goalsSnapshot.docs.map((doc) => doc.data());
   },
 };
