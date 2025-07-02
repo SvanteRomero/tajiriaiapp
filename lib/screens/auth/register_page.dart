@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_timezone/flutter_timezone.dart'; // Import the package
 import 'package:google_fonts/google_fonts.dart';
 import '/core/data/default_categories.dart';
 import '/core/utils/snackbar_utils.dart';
@@ -15,7 +16,7 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(); // Added for the user's name
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -28,7 +29,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _isLoading = true);
     try {
-      // 1. Create user in Firebase Auth
       UserCredential userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -38,10 +38,12 @@ class _RegisterPageState extends State<RegisterPage> {
       User? newUser = userCredential.user;
 
       if (newUser != null) {
-        // 2. Update the user's profile with the display name in Firebase Auth
         await newUser.updateDisplayName(_nameController.text.trim());
 
-        // 3. Create a user document in Firestore
+        // Get the local timezone
+        final String timezone = await FlutterTimezone.getLocalTimezone();
+
+        // Create the user document in Firestore with the timezone
         await FirebaseFirestore.instance
             .collection('users')
             .doc(newUser.uid)
@@ -49,11 +51,12 @@ class _RegisterPageState extends State<RegisterPage> {
           'displayName': _nameController.text.trim(),
           'email': newUser.email,
           'uid': newUser.uid,
-          'photoUrl': null, // You can set a default or leave it null
+          'photoUrl': null,
           'phoneNumber': null,
-        });
+          'timezone': timezone, // Save the timezone
+        }, SetOptions(merge: true));
 
-        // 4. Add default categories for the new user
+        // ... (rest of the function is the same)
         final batch = FirebaseFirestore.instance.batch();
         final categoriesCollection = FirebaseFirestore.instance
             .collection('users')
@@ -84,6 +87,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ... UI is the same
     return Scaffold(
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       body: Center(

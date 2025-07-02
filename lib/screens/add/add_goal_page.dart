@@ -1,10 +1,9 @@
-// lib/screens/add_goal_page.dart
+// lib/screens/add/add_goal_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '/core/models/goal_model.dart';
 import '/core/services/firestore_service.dart';
-import '/core/services/ai_advisor_service.dart';
 import '/core/utils/snackbar_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -23,19 +22,19 @@ class _AddGoalPageState extends State<AddGoalPage> {
   final _dailyLimitController = TextEditingController();
   DateTime _selectedEndDate = DateTime.now().add(const Duration(days: 30));
   bool _isLoading = false;
-  String? _suggestedDailyLimit;
   String _currencySymbol = '\$';
+  String? _suggestedDailyLimitText;
 
   final FirestoreService _firestoreService = FirestoreService();
-  final AiAdvisorService _aiAdvisorService = AiAdvisorService();
 
   @override
   void initState() {
     super.initState();
-    _fetchCurrencyAndSuggestLimit();
+    _fetchCurrency();
+    _targetAmountController.addListener(_updateSuggestedLimit);
   }
 
-  Future<void> _fetchCurrencyAndSuggestLimit() async {
+  Future<void> _fetchCurrency() async {
     try {
       final accounts = await _firestoreService.getAccounts(widget.user.uid).first;
       if (accounts.isNotEmpty && mounted) {
@@ -43,16 +42,26 @@ class _AddGoalPageState extends State<AddGoalPage> {
           _currencySymbol = accounts.first.currency;
         });
       }
-      final response = await _aiAdvisorService.suggestDailyLimit();
-      if (mounted) {
+    } catch (e) {
+      // Handle error if needed
+    }
+  }
+
+  void _updateSuggestedLimit() {
+    final targetAmount = double.tryParse(_targetAmountController.text);
+    if (targetAmount != null && targetAmount > 0) {
+      final now = DateTime.now();
+      final duration = _selectedEndDate.difference(now).inDays;
+      if (duration > 0) {
+        final dailySaving = targetAmount / duration;
         setState(() {
-          _suggestedDailyLimit = response;
+          _suggestedDailyLimitText = "To save ${NumberFormat.currency(symbol: _currencySymbol).format(targetAmount)} in $duration days, you should save at least ${NumberFormat.currency(symbol: _currencySymbol).format(dailySaving)} each day.";
         });
       }
-    } catch (e) {
-      if (mounted) {
-        showCustomSnackbar(context, "Failed to get daily limit suggestion.", type: SnackbarType.error);
-      }
+    } else {
+      setState(() {
+        _suggestedDailyLimitText = null;
+      });
     }
   }
 
@@ -66,6 +75,7 @@ class _AddGoalPageState extends State<AddGoalPage> {
     if (picked != null && picked != _selectedEndDate) {
       setState(() {
         _selectedEndDate = picked;
+        _updateSuggestedLimit(); // Recalculate when date changes
       });
     }
   }
@@ -153,26 +163,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
                 decoration: InputDecoration(
                   labelText: "Daily Spending Limit",
                   prefixText: "$_currencySymbol ",
-                  suffixIcon: _suggestedDailyLimit != null
-                      ? IconButton(
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: Text("Tajiri's Suggestion", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-                                content: Text(_suggestedDailyLimit!),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(),
-                                    child: const Text("OK"),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        )
-                      : null,
                 ),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
@@ -181,6 +171,29 @@ class _AddGoalPageState extends State<AddGoalPage> {
                   return null;
                 },
               ),
+              if (_suggestedDailyLimitText != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.blue),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _suggestedDailyLimitText!,
+                            style: GoogleFonts.poppins(color: Colors.blue.shade800),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
@@ -194,5 +207,14 @@ class _AddGoalPageState extends State<AddGoalPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _goalNameController.dispose();
+    _targetAmountController.removeListener(_updateSuggestedLimit);
+    _targetAmountController.dispose();
+    _dailyLimitController.dispose();
+    super.dispose();
   }
 }

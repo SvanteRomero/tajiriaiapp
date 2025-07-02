@@ -5,7 +5,6 @@ import * as admin from "firebase-admin";
 
 // Initialize Firebase Admin SDK
 admin.initializeApp();
-const db = admin.firestore();
 
 // Import callable functions
 export * from "./callable/transactions";
@@ -22,4 +21,3 @@ export * from "./scheduled/marketingTasks";
 // Import triggered functions
 export * from "./triggers/authTriggers";
 export * from "./triggers/transactionTriggers";
-

@@ -2,8 +2,6 @@
 // functions/services/aiService.ts
 import {GoogleAuth} from "google-auth-library";
 import {VertexAI} from "@google-cloud/vertexai";
-import * as admin from "firebase-admin";
-import {firestoreService} from "./firestoreService"; // Ensure this import is present
 
 export const aiService = {
   async getGenerativeModel() {
@@ -11,7 +9,7 @@ export const aiService = {
     const projectId = await auth.getProjectId();
     const location = "us-central1"; // Or your preferred region
     const vertexAI = new VertexAI({project: projectId, location: location});
-    return vertexAI.preview.getGenerativeModel({model: "gemini-1.5-pro"});
+    return vertexAI.preview.getGenerativeModel({model: "gemini-2.5-pro"});
   },
 
   /**
@@ -77,33 +75,6 @@ export const aiService = {
       throw new Error("No response from AI model for chat.");
     }
     return chatResult.response.candidates[0].content.parts[0].text ?? "I'm not sure how to respond to that. Can you try rephrasing?";
-  },
-
-  /**
-   * Suggests a daily spending limit based on recent user expenses.
-   * @param {string} userId The user's ID.
-   * @return {Promise<string>} The AI's suggestion.
-   */
-  async suggestDailyLimit(userId: string) {
-    const expenses = await firestoreService.getTransactionsForDailyLimitSuggestion(userId);
-
-    let totalSpending = 0;
-    const uniqueDays = new Set<string>();
-
-    expenses.forEach((exp) => {
-      totalSpending += (exp.amount || 0);
-      const date = (exp.date as admin.firestore.Timestamp).toDate().toDateString();
-      uniqueDays.add(date);
-    });
-
-    const numberOfDays = uniqueDays.size > 0 ? uniqueDays.size : 30; // Default to 30 if no unique days
-    const suggestedLimit = totalSpending / numberOfDays;
-
-    if (totalSpending === 0) {
-      return "I can't suggest a daily limit because you haven't recorded any expenses in the last 30 days. Start by tracking your spending to get a clearer picture!";
-    } else {
-      return `Based on your average daily spending of ${suggestedLimit.toFixed(2)} over the last month, a reasonable daily limit for your goal could be around ${suggestedLimit.toFixed(2)}. You can adjust this based on how fast you want to save!`;
-    }
   },
 
   /**
