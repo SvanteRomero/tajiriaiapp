@@ -12,6 +12,7 @@ export * from "./callable/goals";
 export * from "./callable/budgets";
 export * from "./callable/aiAdvisor";
 export * from "./callable/accounts";
+export * from "./callable/user";
 
 // Import scheduled functions
 export * from "./scheduled/dailyTasks";

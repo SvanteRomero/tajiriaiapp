@@ -1,6 +1,8 @@
 // lib/core/models/user_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum FinancialTipsFrequency { daily, weekly, monthly, never }
+
 class UserModel {
   final String uid;
   final String email;
@@ -10,7 +12,7 @@ class UserModel {
   final bool transactionalNotifications;
   final bool goalNotifications;
   final bool financialSummaries;
-  final bool financialTips;
+  final FinancialTipsFrequency financialTips;
   final bool personalizedAlerts;
 
   UserModel({
@@ -22,7 +24,7 @@ class UserModel {
     this.transactionalNotifications = true,
     this.goalNotifications = true,
     this.financialSummaries = true,
-    this.financialTips = true,
+    this.financialTips = FinancialTipsFrequency.daily,
     this.personalizedAlerts = true,
   });
 
@@ -37,7 +39,7 @@ class UserModel {
       transactionalNotifications: data['transactionalNotifications'] ?? true,
       goalNotifications: data['goalNotifications'] ?? true,
       financialSummaries: data['financialSummaries'] ?? true,
-      financialTips: data['financialTips'] ?? true,
+      financialTips: _stringToFinancialTipsFrequency(data['financialTips']),
       personalizedAlerts: data['personalizedAlerts'] ?? true,
     );
   }
@@ -52,8 +54,16 @@ class UserModel {
       'transactionalNotifications': transactionalNotifications,
       'goalNotifications': goalNotifications,
       'financialSummaries': financialSummaries,
-      'financialTips': financialTips,
+      'financialTips': financialTips.name,
       'personalizedAlerts': personalizedAlerts,
     };
+  }
+
+  static FinancialTipsFrequency _stringToFinancialTipsFrequency(String? value) {
+    if (value == null) return FinancialTipsFrequency.daily;
+    return FinancialTipsFrequency.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => FinancialTipsFrequency.daily,
+    );
   }
 }

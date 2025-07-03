@@ -1,32 +1,38 @@
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
-export const sendWelcomeNotification = onDocumentCreated(
-  "users/{userId}",
-  async (event) => {
-    const user = event.data?.data();
-    const userId = event.params.userId;
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
 
-    if (!user) {
-      console.log("No user data found.");
-      return;
-    }
-
-    if (user.financialTips) {
-      const payload = {
-        notification: {
-          title: `Welcome to Tajiri AI, ${user.displayName || "friend"}!`,
-          body: "We're excited to help you on your financial journey. Let's get started!",
-        },
-        topic: userId,
-      };
-
-      try {
-        await admin.messaging().send(payload);
-        console.log(`Successfully sent welcome message to user ${userId}`);
-      } catch (error) {
-        console.error("Error sending welcome notification:", error);
-      }
-    }
+export const triggerWelcomeNotification = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-);
+
+  const uid = request.auth.uid;
+  const userRecord = await admin.auth().getUser(uid);
+  const displayName = userRecord.displayName || "friend";
+
+  const fcmPayload = {
+    // This is what the user sees
+    notification: {
+      title: `Welcome to Tajiri AI, ${displayName}!`,
+      body: "We're excited to help you on your financial journey. Let's get started!",
+    },
+    // This is the data for your app to handle taps
+    data: {
+      payload: "open_chat", // The crucial payload
+    },
+    topic: uid,
+  };
+
+  try {
+    await admin.messaging().send(fcmPayload);
+    console.log(`Successfully sent welcome message to user ${uid}`);
+    return {success: true};
+  } catch (error) {
+    console.error(`Error sending welcome notification to ${uid}:`, error);
+    throw new HttpsError("internal", "Failed to send welcome notification.");
+  }
+});

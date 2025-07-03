@@ -24,7 +24,7 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.trending_up.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Freelance / Side Hustle',
+    name: 'Freelance',
     type: TransactionType.income,
     colorHex: 'FF5722', // Deep Orange
     iconCodePoint: Icons.computer.codePoint.toString(),
@@ -42,7 +42,7 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.home.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Refunds & Reimbursements',
+    name: 'Refunds',
     type: TransactionType.income,
     colorHex: '607D8B', // Blue Grey
     iconCodePoint: Icons.refresh.codePoint.toString(),
@@ -54,7 +54,7 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.account_balance.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Other Income',
+    name: 'Allowance',
     type: TransactionType.income,
     colorHex: '9E9E9E', // Grey
     iconCodePoint: Icons.category.codePoint.toString(),
@@ -62,7 +62,7 @@ List<UserCategory> defaultCategories = [
 
   // Expense Categories
   UserCategory(
-    name: 'Rent / Mortgage',
+    name: 'Rent',
     type: TransactionType.expense,
     colorHex: 'F44336', // Red
     iconCodePoint: Icons.home_work.codePoint.toString(),
@@ -104,7 +104,7 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.payment.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Dining Out / Restaurants',
+    name: 'Food',
     type: TransactionType.expense,
     colorHex: 'FF5722', // Deep Orange
     iconCodePoint: Icons.restaurant.codePoint.toString(),
@@ -128,25 +128,25 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.subscriptions.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Travel / Vacations',
+    name: 'Travel',
     type: TransactionType.expense,
     colorHex: '4CAF50', // Green
     iconCodePoint: Icons.flight.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Savings & Investments',
+    name: 'Investments',
     type: TransactionType.expense,
     colorHex: '00BCD4', // Cyan
     iconCodePoint: Icons.savings.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Emergency Fund',
+    name: 'Emergencies',
     type: TransactionType.expense,
     colorHex: 'F44336', // Red
     iconCodePoint: Icons.emergency.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Debt Repayment',
+    name: 'Debts',
     type: TransactionType.expense,
     colorHex: 'FFC107', // Amber
     iconCodePoint: Icons.credit_card_off.codePoint.toString(),
@@ -164,7 +164,7 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.school.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Childcare / School Fees',
+    name: 'Childcare',
     type: TransactionType.expense,
     colorHex: '8BC34A', // Light Green
     iconCodePoint: Icons.child_care.codePoint.toString(),
@@ -176,7 +176,7 @@ List<UserCategory> defaultCategories = [
     iconCodePoint: Icons.cake.codePoint.toString(),
   ),
   UserCategory(
-    name: 'Donations / Tithes',
+    name: 'Tithes',
     type: TransactionType.expense,
     colorHex: '4CAF50', // Green
     iconCodePoint: Icons.volunteer_activism.codePoint.toString(),

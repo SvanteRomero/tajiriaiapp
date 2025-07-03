@@ -1,22 +1,28 @@
-// lib/screens/home_page.dart
 import 'dart:async';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tajiri_ai/core/models/goal_model.dart';
 import 'package:tajiri_ai/core/services/firestore_service.dart';
-import '/screens/details/goal_details_page.dart';
+import 'package:tajiri_ai/screens/details/goal_details_page.dart';
 import 'advisory.dart';
 import 'analytics.dart';
 import 'dashboard_page.dart';
 import 'profile_page.dart';
-import '/screens/add/add_transaction_page.dart';
+import 'package:tajiri_ai/screens/add/add_transaction_page.dart';
 import 'budget_n_goals_page.dart';
-import '/core/services/notification_service.dart';
+import 'package:tajiri_ai/core/services/notification_service.dart';
 
 class HomePage extends StatefulWidget {
   final User user;
-  const HomePage({super.key, required this.user});
+  final bool isNewUser; // Flag to identify a newly registered user.
+
+  const HomePage({
+    super.key,
+    required this.user,
+    this.isNewUser = false, // Default to false for existing users.
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -31,45 +37,52 @@ class _HomePageState extends State<HomePage> {
     "Tajiri Wangu"
   ];
   late final StreamSubscription<String?> _notificationTapSubscription;
-  late final StreamSubscription<List<ConnectivityResult>>
-      _connectivitySubscription;
+  late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
   bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
     final notificationService = NotificationService();
-    final firestoreService = FirestoreService();
 
-    // Schedule the local daily reminder to log expenses
+    // The core logic to solve the race condition:
+    // 1. Subscribe the app to its user-specific topic first.
+    notificationService.subscribeToUserTopic(widget.user.uid).then((_) {
+      // 2. AFTER the subscription is complete, check if this is a new user.
+      if (widget.isNewUser) {
+        print("New user detected. Subscribed to topic. Triggering welcome notification...");
+        // 3. Call the reliable callable cloud function.
+        FirebaseFunctions.instance
+            .httpsCallable('triggerWelcomeNotification')
+            .call()
+            .catchError((error) {
+              // It's good practice to log errors for debugging.
+              print("Failed to trigger welcome notification: $error");
+            });
+      }
+    });
+
+    // Schedule other recurring local/cloud notifications as before.
     notificationService.scheduleDailyReminderNotification();
 
-    // Listen for notification taps
+    // Set up the listener for when a notification is tapped by the user.
     _notificationTapSubscription =
         notificationService.onNotificationTap.stream.listen((payload) async {
       if (!mounted || payload == null) return;
 
-      // --- Handle "Add Transaction" payload ---
       if (payload == 'add_transaction') {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => AddTransactionPage(user: widget.user),
           ),
         );
-      }
-
-      // --- Handle "Open Chat" payload ---
-      if (payload == 'open_chat') {
-        _onItemTapped(3); // Navigate to the Advisory page (index 3)
-      }
-
-      // --- Handle "View Goal" payload ---
-      if (payload.startsWith('view_goal_')) {
+      } else if (payload == 'open_chat') {
+        _onItemTapped(3); // Navigate to the AI Advisor page.
+      } else if (payload.startsWith('view_goal_')) {
         final goalId = payload.split('_').last;
         try {
-          // Fetch the specific goal from Firestore
           final Goal? goal =
-              await firestoreService.getGoalById(widget.user.uid, goalId);
+              await FirestoreService().getGoalById(widget.user.uid, goalId);
           if (goal != null && mounted) {
             Navigator.of(context).push(
               MaterialPageRoute(
@@ -83,6 +96,7 @@ class _HomePageState extends State<HomePage> {
       }
     });
 
+    // Set up connectivity listener to show offline status.
     _connectivitySubscription =
         Connectivity().onConnectivityChanged.listen((connectivityResult) {
       final isOffline = connectivityResult.contains(ConnectivityResult.none);
@@ -93,9 +107,9 @@ class _HomePageState extends State<HomePage> {
       }
     });
 
-    // Initial connectivity check
+    // Check initial connectivity state on startup.
     Connectivity().checkConnectivity().then((connectivityResult) {
-       final isOffline = connectivityResult.contains(ConnectivityResult.none);
+      final isOffline = connectivityResult.contains(ConnectivityResult.none);
       if (mounted) {
         setState(() {
           _isOffline = isOffline;
@@ -103,7 +117,6 @@ class _HomePageState extends State<HomePage> {
       }
     });
   }
-
 
   @override
   void dispose() {
@@ -177,7 +190,7 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            const SizedBox(width: 48),
+            const SizedBox(width: 48), // The space for the notch
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,

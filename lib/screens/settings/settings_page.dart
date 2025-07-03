@@ -1,13 +1,15 @@
-// lib/screens/settings_page.dart
+// lib/screens/settings/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:tajiri_ai/core/services/notification_service.dart';
 import 'package:tajiri_ai/core/viewmodels/theme_provider.dart';
 import 'package:tajiri_ai/screens/auth/login_page.dart';
 import 'package:tajiri_ai/screens/edit/edit_profile_page.dart';
 import 'package:tajiri_ai/screens/manage/manage_categories_page.dart';
 import 'package:tajiri_ai/screens/settings/notification_settings_page.dart';
+import 'developer_tests_page.dart';
 
 class SettingsPage extends StatelessWidget {
   final User user;
@@ -26,6 +28,7 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 16.0),
         children: [
+          // ... other settings tiles
           _buildSectionHeader("Account"),
           _buildSettingsTile(
             context,
@@ -72,11 +75,28 @@ class SettingsPage extends StatelessWidget {
               themeProvider.toggleTheme();
             },
           ),
+          const Divider(indent: 16, endIndent: 16),
+          _buildSectionHeader("Developer"),
+          _buildSettingsTile(
+            context,
+            icon: Icons.science_outlined,
+            title: "Developer Tests",
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const DeveloperTestsPage(),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 24),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: TextButton(
               onPressed: () async {
+                // Unsubscribe from user topic before signing out
+                await NotificationService().unsubscribeFromUserTopic(user.uid);
+
                 await FirebaseAuth.instance.signOut();
                 if (context.mounted) {
                   Navigator.of(context).pushAndRemoveUntil(

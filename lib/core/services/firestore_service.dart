@@ -1,18 +1,16 @@
-// lib/core/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_model.dart';
-import '/core/models/account_model.dart';
-import '/core/models/budget_model.dart';
-import '/core/models/transaction_model.dart';
-import '/core/models/goal_model.dart';
-import '/core/models/user_category_model.dart';
-import '../../screens/details/goal_details_page.dart';
+import 'package:tajiri_ai/core/models/user_model.dart';
+import 'package:tajiri_ai/core/models/account_model.dart';
+import 'package:tajiri_ai/core/models/budget_model.dart';
+import 'package:tajiri_ai/core/models/transaction_model.dart';
+import 'package:tajiri_ai/core/models/goal_model.dart';
+import 'package:tajiri_ai/core/models/user_category_model.dart';
+import 'package:tajiri_ai/screens/details/goal_details_page.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // ... (getAccounts, addAccount, updateAccount, deleteAccount methods are unchanged)
-
+  /// Fetches a real-time stream of the user's accounts.
   Stream<List<Account>> getAccounts(String userId) {
     return _db
         .collection('users')
@@ -23,6 +21,7 @@ class FirestoreService {
             snapshot.docs.map((doc) => Account.fromFirestore(doc)).toList());
   }
 
+  /// Adds a new account to Firestore for the user.
   Future<void> addAccount(String userId, Account account) async {
     final accountsRef =
         _db.collection('users').doc(userId).collection('accounts');
@@ -41,6 +40,7 @@ class FirestoreService {
     await accountsRef.add(newAccount.toJson());
   }
 
+  /// Updates an existing account in Firestore.
   Future<void> updateAccount(String userId, Account account) {
     return _db
         .collection('users')
@@ -50,6 +50,7 @@ class FirestoreService {
         .update(account.toJson());
   }
 
+  /// Deletes an account from Firestore.
   Future<void> deleteAccount(String userId, String accountId) {
     return _db
         .collection('users')
@@ -58,15 +59,14 @@ class FirestoreService {
         .doc(accountId)
         .delete();
   }
-  
-  // Method for standard income/expense transactions (already supports offline)
+
+  /// Adds a new income or expense transaction and updates the corresponding account balance.
+  /// This supports offline caching and will sync when the connection is restored.
   Future<void> addTransaction(String userId, TransactionModel transaction) async {
     final batch = _db.batch();
     final transactionRef = _db.collection('users').doc(userId).collection('transactions').doc();
     final accountRef = _db.collection('users').doc(userId).collection('accounts').doc(transaction.accountId);
-    
-    // This part requires a read, which can be tricky offline, but Firestore handles caching.
-    // The write itself is added to the batch and will execute when online.
+
     final accountDoc = await accountRef.get(const GetOptions(source: Source.cache));
     if (accountDoc.exists) {
         final currentBalance = (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
@@ -80,7 +80,7 @@ class FirestoreService {
     return batch.commit();
   }
 
-  // CORRECTED: Method to handle transfers with offline support
+  /// Adds a transfer transaction between two accounts.
   Future<void> addTransferTransaction(String userId, String fromAccountId,
       String toAccountId, double amount, String currency) async {
     final batch = _db.batch();
@@ -89,7 +89,6 @@ class FirestoreService {
     final toAccountRef = _db.collection('users').doc(userId).collection('accounts').doc(toAccountId);
     final transactionRef = _db.collection('users').doc(userId).collection('transactions').doc();
 
-    // Perform reads from the cache first to ensure offline capability
     final fromAccountDoc = await fromAccountRef.get(const GetOptions(source: Source.cache));
     final toAccountDoc = await toAccountRef.get(const GetOptions(source: Source.cache));
 
@@ -104,7 +103,6 @@ class FirestoreService {
       throw Exception("Currency must be the same for transfers.");
     }
 
-    // Prepare updates for the batch
     batch.update(fromAccountRef, {'balance': fromAccount.balance - amount});
     batch.update(toAccountRef, {'balance': toAccount.balance + amount});
 
@@ -123,12 +121,10 @@ class FirestoreService {
 
     batch.set(transactionRef, transferTransaction.toJson());
 
-    // Commit the batched write. This will be queued offline and execute upon connection.
     return batch.commit();
   }
 
-  // ... (updateTransaction, deleteTransaction, getTransactions, and all other methods are unchanged)
-  
+  /// Updates an existing transaction and adjusts account balances accordingly.
   Future<void> updateTransaction(String userId,
       TransactionModel oldTransaction, TransactionModel newTransaction) {
     final transactionRef = _db
@@ -158,20 +154,18 @@ class FirestoreService {
       }
 
       double oldAccountBalance =
-          (oldAccountDoc.data() as Map<String, dynamic>)['balance']
-                  ?.toDouble() ??
-              0.0;
+          (oldAccountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
       double newAccountBalance =
-          (newAccountDoc.data() as Map<String, dynamic>)['balance']
-                  ?.toDouble() ??
-              0.0;
+          (newAccountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
 
+      // Revert the old transaction amount
       if (oldTransaction.type == TransactionType.income) {
         oldAccountBalance -= oldTransaction.amount;
       } else {
         oldAccountBalance += oldTransaction.amount;
       }
 
+      // Apply the new transaction amount
       if (newTransaction.type == TransactionType.income) {
         newAccountBalance += newTransaction.amount;
       } else {
@@ -180,14 +174,14 @@ class FirestoreService {
 
       firestoreTransaction.update(oldAccountRef, {'balance': oldAccountBalance});
       if (oldTransaction.accountId != newTransaction.accountId) {
-        firestoreTransaction
-            .update(newAccountRef, {'balance': newAccountBalance});
+        firestoreTransaction.update(newAccountRef, {'balance': newAccountBalance});
       }
 
       firestoreTransaction.update(transactionRef, newTransaction.toJson());
     });
   }
 
+  /// Deletes a transaction and adjusts the account balance.
   Future<void> deleteTransaction(String userId, TransactionModel transaction) {
     final transactionRef = _db
         .collection('users')
@@ -206,8 +200,7 @@ class FirestoreService {
         throw Exception("Account not found!");
       }
       double currentBalance =
-          (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ??
-              0.0;
+          (accountDoc.data() as Map<String, dynamic>)['balance']?.toDouble() ?? 0.0;
       double newBalance;
       if (transaction.type == TransactionType.income) {
         newBalance = currentBalance - transaction.amount;
@@ -219,18 +212,23 @@ class FirestoreService {
     });
   }
 
+  /// Fetches a real-time stream of transactions, ordered by date.
+  /// Includes metadata changes to provide instant UI updates for pending transactions.
   Stream<List<TransactionModel>> getTransactions(String userId) {
     return _db
         .collection('users')
         .doc(userId)
         .collection('transactions')
         .orderBy('date', descending: true)
-        .snapshots()
+        // This is the key change: it tells Firestore to send an update
+        // not just when data changes, but also when its sync status changes.
+        .snapshots(includeMetadataChanges: true) 
         .map((snapshot) => snapshot.docs
             .map((doc) => TransactionModel.fromFirestore(doc))
             .toList());
   }
 
+  /// Fetches a real-time stream of all the user's goals.
   Stream<List<Goal>> getGoals(String userId) {
     return _db
         .collection('users')
@@ -240,7 +238,8 @@ class FirestoreService {
         .map((snapshot) =>
             snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList());
   }
-
+  
+  /// Adds a new goal to Firestore.
   Future<void> addGoal(String userId, Goal goal) {
     return _db
         .collection('users')
@@ -249,6 +248,7 @@ class FirestoreService {
         .add(goal.toJson());
   }
 
+  /// Updates an existing goal in Firestore.
   Future<void> updateGoal(String userId, Goal goal) {
     return _db
         .collection('users')
@@ -258,6 +258,7 @@ class FirestoreService {
         .update(goal.toJson());
   }
 
+  /// Deletes a goal from Firestore.
   Future<void> deleteGoal(String userId, String goalId) {
     return _db
         .collection('users')
@@ -267,6 +268,7 @@ class FirestoreService {
         .delete();
   }
 
+  /// Fetches the daily logs for a specific goal.
   Stream<List<DailyLog>> getDailyLogs(String userId, String goalId) {
     return _db
         .collection('users')
@@ -281,6 +283,7 @@ class FirestoreService {
             .toList());
   }
 
+  /// Adds a new custom category for the user.
   Future<void> addUserCategory(String userId, UserCategory category) {
     return _db
         .collection('users')
@@ -289,6 +292,7 @@ class FirestoreService {
         .add(category.toJson());
   }
 
+  /// Fetches a stream of the user's custom categories, optionally filtered by type.
   Stream<List<UserCategory>> getUserCategories(String userId,
       {TransactionType? type}) {
     Query query = _db.collection('users').doc(userId).collection('categories');
@@ -302,6 +306,7 @@ class FirestoreService {
         .toList());
   }
 
+  /// Updates an existing user category.
   Future<void> updateUserCategory(String userId, UserCategory category) {
     if (category.id == null) {
       throw Exception("Category ID is required for updating.");
@@ -314,6 +319,7 @@ class FirestoreService {
         .update(category.toJson());
   }
 
+  /// Deletes a user category.
   Future<void> deleteUserCategory(String userId, String categoryId) {
     return _db
         .collection('users')
@@ -323,6 +329,7 @@ class FirestoreService {
         .delete();
   }
 
+  /// Fetches a stream of budgets for the current month.
   Stream<List<Budget>> getBudgets(String userId) {
     final now = DateTime.now();
     return _db
@@ -336,6 +343,7 @@ class FirestoreService {
             snapshot.docs.map((doc) => Budget.fromFirestore(doc)).toList());
   }
 
+  /// Adds a new budget to Firestore.
   Future<void> addBudget(String userId, Budget budget) {
     return _db
         .collection('users')
@@ -344,6 +352,7 @@ class FirestoreService {
         .add(budget.toJson());
   }
 
+  /// Updates an existing budget.
   Future<void> updateBudget(String userId, Budget budget) {
     return _db
         .collection('users')
@@ -353,6 +362,7 @@ class FirestoreService {
         .update(budget.toJson());
   }
 
+  /// Deletes a budget.
   Future<void> deleteBudget(String userId, String budgetId) {
     return _db
         .collection('users')
@@ -362,6 +372,7 @@ class FirestoreService {
         .delete();
   }
 
+  /// Updates a user's notification settings in their main document.
   Future<void> updateUserNotificationSettings(
       String userId, Map<String, dynamic> settings) {
     return _db.collection('users').doc(userId).set(
@@ -370,6 +381,7 @@ class FirestoreService {
         );
   }
 
+  /// Fetches a stream of the user's main document data.
   Stream<UserModel> getUser(String userId) {
     return _db
         .collection('users')
@@ -378,7 +390,7 @@ class FirestoreService {
         .map((doc) => UserModel.fromFirestore(doc));
   }
 
-    /// Fetches a single goal by its ID for a given user.
+  /// Fetches a single goal by its ID.
   Future<Goal?> getGoalById(String userId, String goalId) async {
     try {
       final doc =
@@ -392,5 +404,4 @@ class FirestoreService {
       return null;
     }
   }
-
 }

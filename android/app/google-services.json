@@ -7,6 +7,35 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:143364800780:android:9c2d6d03aa1ce022000929",
+        "android_client_info": {
+          "package_name": "com.example.tajiri_ai_allen"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "143364800780-le2g5rg44l8r2rdp9gb5kdro6etvu5ef.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOiO23VrQfo4PgS4l6XJc4kEBsIO2H68k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "143364800780-le2g5rg44l8r2rdp9gb5kdro6etvu5ef.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:143364800780:android:4d46d8e8d7f5ea9d000929",
         "android_client_info": {
           "package_name": "com.glyptis.tajiri_ai"

@@ -87,31 +87,55 @@ export const sendFinancialTip = onSchedule(
         continue;
       }
 
-      // Send daily at 10 AM local time
-      if (nowInUserTimezone.getHours() === 10) {
-        if (user && user.financialTips) {
-          try {
-            const transactions = await firestoreService.getUserTransactionsForTip(userId);
-            const budgets = await firestoreService.getUserBudgetsForTip(userId);
-            const goals = await firestoreService.getUserGoalsForTip(userId);
-            const categories = await firestoreService.getUserCategories(userId);
+      const frequency = user.financialTips;
 
-            const financialData = {transactions, budgets, goals, categories};
-            const personalizedTip = await aiService.getPersonalizedFinancialTip(userId, financialData);
+      if (!frequency || frequency === "never") {
+        continue;
+      }
 
-            const payload = {
-              notification: {
-                title: "Your Daily Financial Tip from Tajiri! 💡",
-                body: personalizedTip,
-              },
-              topic: userId,
-            };
+      let shouldSend = false;
+      const hour = nowInUserTimezone.getHours();
 
-            await admin.messaging().send(payload);
-            console.log(`Sent personalized financial tip to user ${userId}`);
-          } catch (error) {
-            console.error(`Error sending personalized financial tip to user ${userId}:`, error);
+      if (hour === 10) {
+        switch (frequency) {
+        case "daily":
+          shouldSend = true;
+          break;
+        case "weekly":
+          if (nowInUserTimezone.getDay() === 1) {
+            shouldSend = true;
           }
+          break;
+        case "monthly":
+          if (nowInUserTimezone.getDate() === 1) {
+            shouldSend = true;
+          }
+          break;
+        }
+      }
+
+      if (shouldSend) {
+        try {
+          const transactions = await firestoreService.getUserTransactionsForTip(userId);
+          const budgets = await firestoreService.getUserBudgetsForTip(userId);
+          const goals = await firestoreService.getUserGoalsForTip(userId);
+          const categories = await firestoreService.getUserCategories(userId);
+
+          const financialData = {transactions, budgets, goals, categories};
+          const personalizedTip = await aiService.getPersonalizedFinancialTip(userId, financialData);
+
+          const payload = {
+            notification: {
+              title: "Your Financial Tip from Tajiri! 💡",
+              body: personalizedTip,
+            },
+            topic: userId,
+          };
+
+          await admin.messaging().send(payload);
+          console.log(`Sent financial tip to user ${userId} with frequency '${frequency}'`);
+        } catch (error) {
+          console.error(`Error sending financial tip to user ${userId}:`, error);
         }
       }
     }

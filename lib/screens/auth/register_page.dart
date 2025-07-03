@@ -1,11 +1,11 @@
-// lib/screens/auth/register_page.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_timezone/flutter_timezone.dart'; // Import the package
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '/core/data/default_categories.dart';
-import '/core/utils/snackbar_utils.dart';
+import 'package:tajiri_ai/screens/home_page.dart';
+import 'package:tajiri_ai/core/data/default_categories.dart';
+import 'package:tajiri_ai/core/utils/snackbar_utils.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -22,13 +22,17 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
 
+  /// Handles the entire user registration process.
   Future<void> _signUp() async {
+    // 1. Validate the form fields.
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     setState(() => _isLoading = true);
+
     try {
+      // 2. Create the user in Firebase Authentication.
       UserCredential userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -38,12 +42,13 @@ class _RegisterPageState extends State<RegisterPage> {
       User? newUser = userCredential.user;
 
       if (newUser != null) {
+        // 3. Update their display name in Firebase Auth.
         await newUser.updateDisplayName(_nameController.text.trim());
 
-        // Get the local timezone
+        // 4. Get the device's local timezone.
         final String timezone = await FlutterTimezone.getLocalTimezone();
 
-        // Create the user document in Firestore with the timezone
+        // 5. Create the user document in Firestore with default settings.
         await FirebaseFirestore.instance
             .collection('users')
             .doc(newUser.uid)
@@ -53,10 +58,15 @@ class _RegisterPageState extends State<RegisterPage> {
           'uid': newUser.uid,
           'photoUrl': null,
           'phoneNumber': null,
-          'timezone': timezone, // Save the timezone
+          'timezone': timezone,
+          'financialTips': 'daily', // Default frequency
+          'transactionalNotifications': true,
+          'goalNotifications': true,
+          'financialSummaries': true,
+          'personalizedAlerts': true,
         }, SetOptions(merge: true));
 
-        // ... (rest of the function is the same)
+        // 6. Add default expense/income categories for the new user.
         final batch = FirebaseFirestore.instance.batch();
         final categoriesCollection = FirebaseFirestore.instance
             .collection('users')
@@ -69,10 +79,22 @@ class _RegisterPageState extends State<RegisterPage> {
         }
         await batch.commit();
 
+        // 7. Reload the user to ensure all data is fresh before navigating.
         await newUser.reload();
-      }
 
-      if (mounted) Navigator.of(context).pop();
+        // 8. Navigate to the HomePage, passing the crucial `isNewUser` flag.
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => HomePage(
+                user: newUser,
+                isNewUser: true, // This tells HomePage to trigger the notification.
+              ),
+            ),
+            (Route<dynamic> route) => false, // Clear the navigation stack.
+          );
+        }
+      }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
         showCustomSnackbar(context, e.message ?? "Registration failed",
@@ -87,7 +109,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ... UI is the same
     return Scaffold(
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       body: Center(
@@ -103,7 +124,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         fontSize: 32, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 40),
                 TextFormField(
-                  controller: _nameController, // Name field
+                  controller: _nameController,
                   decoration: const InputDecoration(labelText: "Display Name"),
                   validator: (value) {
                     if (value == null || value.isEmpty) {

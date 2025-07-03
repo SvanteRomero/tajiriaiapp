@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Analytics Dashboard | Tajiri AI</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        /* Embedded CSS for a clean, modern dashboard design */
+        :root {
+            --primary-color: #6a1b9a; /* Deep Purple */
+            --primary-light: #ab47bc;
+            --primary-dark: #4a148c;
+            --secondary-color: #f3e5f5;
+            --background-color: #f5f7fa;
+            --surface-color: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --border-color: #e9ecef;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .dashboard-container {
+            padding: 2rem;
+            max-width: 1600px;
+            margin: auto;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1.5rem;
+        }
+
+        .main-chart-container {
+            grid-column: span 12;
+            background-color: var(--surface-color);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .chart-card {
+            grid-column: span 12;
+            grid-column: span 6;
+            grid-column: span 4;
+            background-color: var(--surface-color);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .leaderboard-container {
+            grid-column: span 12;
+            background-color: var(--surface-color);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        h2 {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+        
+        thead th {
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        
+        tbody tr:hover {
+            background-color: var(--background-color);
+        }
+        
+        .user-profile {
+            display: flex;
+            align-items: center;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+        
+        .user-info .name {
+            font-weight: 600;
+        }
+        
+        .user-info .email {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            background-color: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            height: 8px;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--primary-light);
+            border-radius: 4px;
+        }
+        
+        @media (min-width: 768px) {
+            .chart-card { grid-column: span 6; }
+        }
+        @media (min-width: 1024px) {
+            .chart-card { grid-column: span 4; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <main class="dashboard-container">
+        <header>
+            <h1>User Analytics</h1>
+            <p>An overview of user engagement, behavior, and financial habits.</p>
+        </header>
+
+        <div class="dashboard-grid">
+            
+            <section class="main-chart-container">
+                <h2>User Activity (Last 30 Days)</h2>
+                <canvas id="userActivityChart"></canvas>
+            </section>
+
+            <section class="chart-card">
+                <h2>Engagement by Platform</h2>
+                <canvas id="platformChart" style="max-height: 250px;"></canvas>
+            </section>
+
+            <section class="chart-card">
+                <h2>Average Spending</h2>
+                <canvas id="spendingChart" style="max-height: 250px;"></canvas>
+            </section>
+
+            <section class="chart-card">
+                <h2>Goal Completion Rate</h2>
+                <canvas id="goalCompletionChart" style="max-height: 250px;"></canvas>
+            </section>
+
+            <section class="leaderboard-container">
+                <h2>User Leaderboard</h2>
+                 <table>
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Transactions (30d)</th>
+                            <th>Goals Completed</th>
+                            <th>Savings Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-table-body">
+                        </tbody>
+                </table>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- DUMMY ANALYTICS DATA ---
+            const leaderboardData = [
+                { name: 'Asha Juma', email: 'asha.j@example.com', transactions: 125, goals: 5, savingsRate: 35 },
+                { name: 'David Mwangi', email: 'david.m@example.com', transactions: 110, goals: 7, savingsRate: 45 },
+                { name: 'Fatuma Hassan', email: 'fatuma.h@example.com', transactions: 98, goals: 4, savingsRate: 28 },
+                { name: 'Baraka Simon', email: 'baraka.s@example.com', transactions: 95, goals: 3, savingsRate: 22 },
+                { name: 'Esther Kimaro', email: 'esther.k@example.com', transactions: 80, goals: 6, savingsRate: 40 },
+            ];
+            
+            // --- RENDER FUNCTIONS ---
+
+            const renderLeaderboard = () => {
+                const tableBody = document.getElementById('leaderboard-table-body');
+                tableBody.innerHTML = '';
+                leaderboardData.forEach(user => {
+                    const row = document.createElement('tr');
+                    const userInitial = user.name.charAt(0);
+                    row.innerHTML = `
+                        <td>
+                            <div class="user-profile">
+                                <div class="user-avatar">${userInitial}</div>
+                                <div class="user-info">
+                                    <div class="name">${user.name}</div>
+                                    <div class="email">${user.email}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${user.transactions}</td>
+                        <td>${user.goals}</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill" style="width: ${user.savingsRate}%;"></div>
+                            </div>
+                            <span style="font-size: 0.9rem; margin-left: 4px;">${user.savingsRate}%</span>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            };
+
+            // --- CHART RENDERING ---
+
+            // 1. Main User Activity Chart
+            new Chart(document.getElementById('userActivityChart'), {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 30}, (_, i) => `Day ${i + 1}`),
+                    datasets: [
+                        {
+                            label: 'New Signups',
+                            data: Array.from({length: 30}, () => Math.floor(Math.random() * 20) + 5),
+                            borderColor: 'rgba(171, 71, 188, 1)', // primary-light
+                            backgroundColor: 'rgba(171, 71, 188, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Daily Active Users',
+                            data: Array.from({length: 30}, () => Math.floor(Math.random() * 150) + 50),
+                            borderColor: 'rgba(74, 20, 140, 1)', // primary-dark
+                            backgroundColor: 'rgba(74, 20, 140, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // 2. Engagement by Platform
+            new Chart(document.getElementById('platformChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Android', 'iOS', 'Web'],
+                    datasets: [{
+                        label: 'User Base',
+                        data: [68, 25, 7],
+                        backgroundColor: ['#4a148c', '#ab47bc', '#f3e5f5'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // 3. Average Spending Chart
+            new Chart(document.getElementById('spendingChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Food & Groceries', 'Transport', 'Bills', 'Entertainment', 'Other'],
+                    datasets: [{
+                        label: 'Spending',
+                        data: [40, 25, 15, 10, 10],
+                        backgroundColor: ['#4a148c', '#6a1b9a', '#ab47bc', '#ce93d8', '#f3e5f5'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            
+             // 4. Goal Completion Chart
+            new Chart(document.getElementById('goalCompletionChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'In Progress', 'Abandoned'],
+                    datasets: [{
+                        label: 'Goals',
+                        data: [55, 35, 10],
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // --- INITIAL RENDER ---
+            renderLeaderboard();
+        });
+    </script>
+</body>
+</html>

@@ -1,4 +1,3 @@
-// lib/core/services/notification_service.dart
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -38,40 +37,51 @@ class NotificationService {
       },
     );
 
-    // Get the FCM token for this device
+    // Get the FCM token for this device for debugging or direct messaging.
     final token = await _firebaseMessaging.getToken();
-    print(
-        "FCM Token: $token"); // You can save this token to Firestore to send notifications to specific users
+    print("FCM Token: $token");
 
-    // Handle incoming messages while the app is in the foreground
+    // Handle incoming messages while the app is in the foreground.
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Got a message whilst in the foreground!');
+      print('Got a message whilst in theforeground!');
       print('Message data: ${message.data}');
 
       if (message.notification != null) {
         print('Message also contained a notification: ${message.notification}');
         showNotification(
-          title: message.notification?.title ?? '',
-          body: message.notification?.body ?? '',
-          payload: message.data['payload'],
+          title: message.notification?.title ?? 'No Title',
+          body: message.notification?.body ?? 'No Body',
+          // FIX: Safely handle the payload, providing a default value if null.
+          payload: message.data['payload'] ?? 'default_payload',
         );
       }
     });
 
-    // Handle notification taps when the app is in the background or terminated
+    // Handle notification taps when the app is in the background or terminated.
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('A new onMessageOpenedApp event was published!');
       onNotificationTap.add(message.data['payload']);
     });
   }
 
-  Future<void> showNotification(
-      {required String title,
-      required String body,
-      required String payload}) async {
+  Future<void> subscribeToUserTopic(String userId) async {
+    await _firebaseMessaging.subscribeToTopic(userId);
+    print('Subscribed to topic: $userId');
+  }
+
+  Future<void> unsubscribeFromUserTopic(String userId) async {
+    await _firebaseMessaging.unsubscribeFromTopic(userId);
+    print('Unsubscribed from topic: $userId');
+  }
+
+  /// Displays a local notification.
+  Future<void> showNotification({
+    required String title,
+    required String body,
+    required String payload,
+  }) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'your_channel_id',
+      'your_channel_id', // This should be unique
       'your_channel_name',
       channelDescription: 'your_channel_description',
       importance: Importance.max,
@@ -80,8 +90,9 @@ class NotificationService {
     );
     const NotificationDetails platformChannelSpecifics =
         NotificationDetails(android: androidPlatformChannelSpecifics);
+
     await _flutterLocalNotificationsPlugin.show(
-      0,
+      DateTime.now().millisecond, // Use a unique ID to show multiple notifications
       title,
       body,
       platformChannelSpecifics,
@@ -89,38 +100,46 @@ class NotificationService {
     );
   }
 
+  /// Schedules the daily reminder to log expenses.
   Future<void> scheduleDailyReminderNotification() async {
-    final String currentTimeZone = await FlutterTimezone.getLocalTimezone();
-    tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation(currentTimeZone));
+    try {
+      final String currentTimeZone = await FlutterTimezone.getLocalTimezone();
+      tz.initializeTimeZones();
+      tz.setLocalLocation(tz.getLocation(currentTimeZone));
 
-    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, 20);
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
+      final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
+      // Schedule for 8 PM (20:00) in the user's local time.
+      tz.TZDateTime scheduledDate =
+          tz.TZDateTime(tz.local, now.year, now.month, now.day, 20);
 
-    await _flutterLocalNotificationsPlugin.zonedSchedule(
-      1,
-      'Friendly Reminder',
-      'Don\'t forget to log your expenses for today!',
-      scheduledDate,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'daily_reminder_channel',
-          'Daily Reminder',
-          channelDescription: 'A reminder to log your daily expenses.',
-          importance: Importance.max,
-          priority: Priority.high,
+      // If it's already past 8 PM today, schedule for tomorrow.
+      if (scheduledDate.isBefore(now)) {
+        scheduledDate = scheduledDate.add(const Duration(days: 1));
+      }
+
+      await _flutterLocalNotificationsPlugin.zonedSchedule(
+        1, // A static ID for the daily reminder so it overwrites itself.
+        'Friendly Reminder',
+        'Don\'t forget to log your expenses for today!',
+        scheduledDate,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'daily_reminder_channel',
+            'Daily Reminder',
+            channelDescription: 'A reminder to log your daily expenses.',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
         ),
-        iOS: DarwinNotificationDetails(),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      //uiLocalNotificationDateInterpretation:
-         // UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-      payload: 'add_transaction',
-    );
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        //LocalNotificationDateInterpretation:
+            //calNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: 'add_transaction',
+      );
+    } catch (e) {
+      print("Error scheduling daily reminder: $e");
+    }
   }
 }
