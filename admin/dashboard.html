@@ -4,51 +4,139 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Tajiri AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body style="visibility: hidden;">
-    <div class="sidebar">
-        <div class="sidebar-header"><h2>Tajiri AI</h2></div>
-        <nav class="sidebar-nav">
-            <a href="#" class="nav-item active" data-section="dashboard"><span class="icon">📊</span>Dashboard</a>
-            <a href="#" class="nav-item" data-section="users"><span class="icon">👥</span>User Management</a>
-            <a href="#" class="nav-item" data-section="content"><span class="icon">📝</span>Content Management</a>
-            <a href="#" class="nav-item" data-section="support"><span class="icon">📫</span>Support Tickets</a>
-        </nav>
-        <div class="sidebar-footer">
-            <button id="logout-btn" class="btn btn-danger">Sign Out</button>
+<body>
+
+    <div id="loading-indicator" class="d-flex justify-content-center align-items-center vh-100">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 
-    <main class="main-content">
-        <section id="dashboard" class="content-section active">
-            <div class="page-header"><h1>Analytics Dashboard</h1></div>
-            <div class="stats-grid">
-                <div class="card stat-card"><div class="icon">👥</div><div class="info"><div id="total-users" class="value">--</div><div class="label">Total Users</div></div></div>
-                <div class="card stat-card"><div class="icon">📈</div><div class="info"><div id="dau" class="value">--</div><div class="label">Daily Active Users</div></div></div>
-                <div class="card stat-card"><div class="icon">🚀</div><div class="info"><div id="retention" class="value">--%</div><div class="label">Retention Rate</div></div></div>
+    <div class="d-flex" id="wrapper" style="display: none;">
+        <div class="bg-light border-right" id="sidebar-wrapper">
+            <div class="sidebar-heading">Tajiri AI Admin</div>
+            <div class="list-group list-group-flush">
+                <a href="#" class="list-group-item list-group-item-action bg-light active" data-section="dashboard-section">Dashboard</a>
+                <a href="#" class="list-group-item list-group-item-action bg-light" data-section="user-management-section">User Management</a>
+                <a href="#" class="list-group-item list-group-item-action bg-light" data-section="create-admin-section">Create Admin</a>
             </div>
-            <div class="charts-grid">
-                <div class="card"><div class="card-header"><h3 class="card-title">User Registration Trends</h3></div><canvas id="user-registrations-chart"></canvas></div>
-                <div class="card"><div class="card-header"><h3 class="card-title">Feature Adoption</div><canvas id="feature-adoption-chart"></canvas></div>
-            </div>
-        </section>
+        </div>
 
-        <section id="users" class="content-section">
-            <div class="page-header"><h1>User Management</h1></div>
-            <div class="card">
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>User</th><th>Email</th><th>Reg. Date</th><th>Health Score</th><th>Actions</th></tr></thead>
-                        <tbody id="user-table-body"></tbody>
-                    </table>
+        <div id="page-content-wrapper">
+            <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
+                <div class="container-fluid">
+                    <button class="btn btn-primary" id="menu-toggle">Toggle Menu</button>
+                    <button id="logout-btn" class="btn btn-danger">Sign Out</button>
+                </div>
+            </nav>
+
+            <div class="container-fluid py-4">
+                <div id="action-status-message" class="alert" style="display: none;"></div>
+
+                <div id="dashboard-section" class="content-section active">
+                    <h1 class="mt-4">Dashboard</h1>
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card text-center h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">Total Users</h5>
+                                    <p class="card-text display-4" id="total-users">--</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="user-management-section" class="content-section" style="display: none;">
+                    <h1 class="mt-4">User Management</h1>
+                    <input type="text" id="searchInput" class="form-control mb-3" placeholder="Search for users...">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Registration Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="user-detail-section" class="content-section" style="display: none;">
+                    <button id="back-to-users-btn" class="btn btn-secondary mb-3">← Back to Users</button>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-4">
+                                <div id="user-detail-avatar" class="avatar-large"></div>
+                                <div class="ms-3">
+                                    <h2 id="user-detail-name" class="mb-0"></h2>
+                                    <p id="user-detail-email" class="text-muted mb-1"></p>
+                                    <span id="user-detail-status" class="badge"></span>
+                                </div>
+                            </div>
+                            <ul class="nav nav-tabs">
+                                <li class="nav-item">
+                                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#overview" type="button">Overview</button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#actions" type="button">Actions</button>
+                                </li>
+                            </ul>
+                            <div class="tab-content pt-3">
+                                <div class="tab-pane fade show active" id="overview">
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item d-flex justify-content-between"><strong>UID:</strong> <span id="user-detail-uid"></span></li>
+                                        <li class="list-group-item d-flex justify-content-between"><strong>Date Joined:</strong> <span id="user-detail-created"></span></li>
+                                    </ul>
+                                </div>
+                                <div class="tab-pane fade" id="actions">
+                                    <h5>Administrative Actions</h5>
+                                    <button class="btn" id="suspend-user-btn">Suspend</button>
+                                    <button class="btn btn-danger" id="delete-user-btn">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="create-admin-section" class="content-section" style="display: none;">
+                    <h1 class="mt-4">Create or Upgrade Admin</h1>
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="admin-signup-form">
+                                <div class="mb-3">
+                                    <label class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="email" name="email" required>
+                                </div>
+                                 <div class="mb-3">
+                                    <label class="form-label">Password (for new users)</label>
+                                    <input type="password" class="form-control" id="password" name="password">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Process Request</button>
+                            </form>
+                            <div id="signup-status-message" style="display: none;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </section>
-        
-        </main>
+        </div>
+    </div>
 
-    <script type="module" src="/js/dashboard.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script type="module" src="/js/firebase-config.js"></script>
+    
+    <script src="/js/dashboard.js"></script> 
 </body>
 </html>
