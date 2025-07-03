@@ -150,3 +150,41 @@ export const deleteOwnAccount = onCall(async (request) => {
     throw new HttpsError("internal", "An unexpected error occurred while deleting your account.");
   }
 });
+
+// Add this new function to the end of the file
+
+/**
+ * Checks the status of a logged-in user to determine redirection logic.
+ * @returns {{status: "admin" | "can-claim" | "non-admin"}}
+ * - "admin": User has admin privileges.
+ * - "can-claim": User is not an admin, but no other admins exist.
+ * - "non-admin": User is not an admin, and other admins already exist.
+ */
+export const checkUserStatus = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+
+  // 1. Check if the calling user is already an admin.
+  if (request.auth.token.admin === true) {
+    return {status: "admin"};
+  }
+
+  // 2. If not an admin, check if any other admin user exists.
+  try {
+    // We only need to find one admin to know if the role is taken.
+    const listUsersResult = await admin.auth().listUsers(100);
+    for (const user of listUsersResult.users) {
+      if (user.customClaims && user.customClaims["admin"] === true) {
+        // An admin exists, but it's not the current user.
+        return {status: "non-admin"};
+      }
+    }
+    // If the loop completes and no admin was found, this user can claim the role.
+    return {status: "can-claim"};
+  } catch (error) {
+    console.error("Error while checking for existing admin users:", error);
+    // For security, default to "non-admin" if an error occurs.
+    throw new HttpsError("internal", "An error occurred while checking user status.");
+  }
+});

@@ -1,22 +1,28 @@
+import { auth } from './firebase-config.js';
+import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+
 document.addEventListener('DOMContentLoaded', () => {
     const signupForm = document.getElementById('signup-form');
+    const errorMessageDiv = document.getElementById('error-message');
+
     signupForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const displayName = signupForm.displayName.value;
         const email = signupForm.email.value;
         const password = signupForm.password.value;
 
-        firebase.auth().createUserWithEmailAndPassword(email, password)
-            .then(userCredential => {
-                return userCredential.user.updateProfile({ displayName: displayName });
+        createUserWithEmailAndPassword(auth, email, password)
+            .then((userCredential) => {
+                // Set the user's display name
+                return updateProfile(userCredential.user, { displayName: displayName });
             })
             .then(() => {
-                alert("Account created! Please log in to continue.");
+                alert("Account created! Redirecting to login page.");
                 window.location.href = '/login.html';
             })
-            .catch(error => {
-                document.getElementById('error-message').textContent = error.message;
-                document.getElementById('error-message').style.display = 'block';
+            .catch((error) => {
+                errorMessageDiv.textContent = error.message;
+                errorMessageDiv.style.display = 'block';
             });
     });
 });

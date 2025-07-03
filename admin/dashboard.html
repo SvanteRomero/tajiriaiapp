@@ -7,98 +7,48 @@
     <link rel="stylesheet" href="/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body style="visibility: hidden;"> <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>Tajiri AI</h2>
-        </div>
+<body style="visibility: hidden;">
+    <div class="sidebar">
+        <div class="sidebar-header"><h2>Tajiri AI</h2></div>
         <nav class="sidebar-nav">
-            <a href="#dashboard" class="nav-item active" data-section="dashboard-section">
-                <span class="icon">📊</span> Dashboard
-            </a>
-            <a href="#users" class="nav-item" data-section="user-management-section">
-                <span class="icon">👥</span> User Management
-            </a>
-            <a href="#create-admin" class="nav-item" data-section="create-admin-section">
-                <span class="icon">➕</span> Create Admin
-            </a>
+            <a href="#" class="nav-item active" data-section="dashboard"><span class="icon">📊</span>Dashboard</a>
+            <a href="#" class="nav-item" data-section="users"><span class="icon">👥</span>User Management</a>
+            <a href="#" class="nav-item" data-section="content"><span class="icon">📝</span>Content Management</a>
+            <a href="#" class="nav-item" data-section="support"><span class="icon">📫</span>Support Tickets</a>
         </nav>
         <div class="sidebar-footer">
-            <button id="logout-btn" class="btn btn-danger" style="width: 100%;">Sign Out</button>
+            <button id="logout-btn" class="btn btn-danger">Sign Out</button>
         </div>
     </div>
 
     <main class="main-content">
-
-        <section id="dashboard-section" class="content-section active">
-            <div class="page-header">
-                <h1>Dashboard</h1>
-                <p>A high-level overview of your application's key metrics.</p>
-            </div>
-            <div id="action-status-message" class="status-message" style="margin-bottom: 1rem;"></div>
+        <section id="dashboard" class="content-section active">
+            <div class="page-header"><h1>Analytics Dashboard</h1></div>
             <div class="stats-grid">
-                <div class="card stat-card"><div class="icon">👥</div><div class="info"><div class="value" id="total-users">--</div><div class="label">Total Users</div></div></div>
-                <div class="card stat-card"><div class="icon">📈</div><div class="info"><div class="value" id="active-users">--</div><div class="label">New Signups</div></div></div>
-                <div class="card stat-card"><div class="icon">💳</div><div class="info"><div class="value" id="total-transactions">--</div><div class="label">Total Transactions</div></div></div>
+                <div class="card stat-card"><div class="icon">👥</div><div class="info"><div id="total-users" class="value">--</div><div class="label">Total Users</div></div></div>
+                <div class="card stat-card"><div class="icon">📈</div><div class="info"><div id="dau" class="value">--</div><div class="label">Daily Active Users</div></div></div>
+                <div class="card stat-card"><div class="icon">🚀</div><div class="info"><div id="retention" class="value">--%</div><div class="label">Retention Rate</div></div></div>
             </div>
             <div class="charts-grid">
-                <div class="card"><div class="card-header"><h3 class="card-title">User Registrations</h3></div><canvas id="user-registrations-chart"></canvas></div>
-                <div class="card"><div class="card-header"><h3 class="card-title">User Activity Leaderboard</h3></div><canvas id="user-activity-chart"></canvas></div>
+                <div class="card"><div class="card-header"><h3 class="card-title">User Registration Trends</h3></div><canvas id="user-registrations-chart"></canvas></div>
+                <div class="card"><div class="card-header"><h3 class="card-title">Feature Adoption</div><canvas id="feature-adoption-chart"></canvas></div>
             </div>
         </section>
 
-        <section id="user-management-section" class="content-section">
-            <div class="page-header"><h1>User Management</h1><p>View, search, and manage all application users.</p></div>
+        <section id="users" class="content-section">
+            <div class="page-header"><h1>User Management</h1></div>
             <div class="card">
-                <div class="table-search-header"><input type="text" id="searchInput" placeholder="Search users..."></div>
                 <div class="table-container">
                     <table>
-                        <thead><tr><th>User</th><th>Registration Date</th><th>Last Active</th><th>Status</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>User</th><th>Email</th><th>Reg. Date</th><th>Health Score</th><th>Actions</th></tr></thead>
                         <tbody id="user-table-body"></tbody>
                     </table>
                 </div>
             </div>
         </section>
-
-        <section id="user-detail-section" class="content-section">
-            <div class="page-header"><button id="back-to-users-btn" class="btn btn-secondary">← Back to Users</button></div>
-            <div class="user-detail-header"><div id="user-detail-avatar"></div><div><h1 id="user-detail-name"></h1><p id="user-detail-email"></p></div></div>
-            <div class="user-detail-tabs">
-                <div class="tab active" data-tab="transactions">Transactions</div>
-                <div class="tab" data-tab="accounts">Accounts</div>
-                <div class="tab" data-tab="budgets">Budgets</div>
-                <div class="tab" data-tab="goals">Goals</div>
-            </div>
-            <div class="card">
-                <div id="tab-transactions" class="tab-content active"><h3 class="card-title">Recent Transactions</h3><p>Transaction data will be loaded here...</p></div>
-                <div id="tab-accounts" class="tab-content"><h3 class="card-title">Accounts</h3><p>Account details for the user...</p></div>
-                <div id="tab-budgets" class="tab-content"><h3 class="card-title">Budgets</h3><p>Budget information for the user...</p></div>
-                <div id="tab-goals" class="tab-content"><h3 class="card-title">Goals</h3><p>Goal progress for the user...</p></div>
-            </div>
-        </section>
         
-        <section id="create-admin-section" class="content-section">
-            <div class="page-header"><h1>Create or Upgrade Admin</h1><p>Grant admin privileges to a new or existing user.</p></div>
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Admin User Details</h3></div>
-                <form id="admin-signup-form">
-                    <div class="form-field">
-                        <label for="admin-email">User Email Address</label>
-                        <input type="email" id="email" name="email" required>
-                        <small>If the email belongs to an existing user, they will be made an admin. If not, a new user will be created with a temporary password.</small>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Process Request</button>
-                </form>
-                <div id="signup-status-message" class="status-message" style="margin-top: 1.5rem;"></div>
-            </div>
-        </section>
-    </main>
+        </main>
 
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-functions-compat.js"></script>
-
-    <script src="/js/firebase-config.js"></script>
     <script type="module" src="/js/dashboard.js"></script>
 </body>
 </html>
