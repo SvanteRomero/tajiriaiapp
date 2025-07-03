@@ -1,0 +1,18 @@
+{
+    // Format code on save
+    "editor.formatOnSave": true,
+
+    // Use Dart's formatter for Dart files
+    "[dart]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "Dart-Code.dart-code"
+    },
+
+    // Enable Flutter specific linting
+    "dart.analysisExcludedFolders": [
+        "build"
+    ],
+
+    // Show TODOs in the problems panel
+    "dart.showTodos": true,
+}
