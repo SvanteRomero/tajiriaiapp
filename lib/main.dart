@@ -5,10 +5,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:tajiri_ai/core/constants/app_theme.dart';
-import 'package:tajiri_ai/core/viewmodels/theme_provider.dart';
-import 'package:tajiri_ai/screens/auth/login_page.dart';
-import 'package:tajiri_ai/screens/home_page.dart';
+import '/core/constants/app_theme.dart';
+import '/core/viewmodels/theme_provider.dart';
+import '/screens/auth/login_page.dart';
+import '/screens/home_page.dart';
 import 'core/services/notification_service.dart';
 import 'firebase_options.dart';
 
