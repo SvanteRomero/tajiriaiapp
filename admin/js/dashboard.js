@@ -1,246 +1,265 @@
-// --- AUTH GUARD & INITIALIZATION ---
+// This script assumes firebase-config.js is loaded first and initializes `window.firebase`
 
-// Reusable function to check for admin status
-function checkAdminStatus() {
-    return new Promise((resolve) => {
-        firebase.auth().onAuthStateChanged(user => {
-            if (user) {
-                user.getIdTokenResult(true).then(idTokenResult => {
-                    if (!!idTokenResult.claims.admin) {
-                        resolve(true); // User is an admin
-                    } else {
-                        // User is logged in but not an admin, sign out and redirect
-                        firebase.auth().signOut();
-                        window.location.href = '/login.html';
-                        resolve(false);
-                    }
-                });
+// Import Firebase services
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js";
+import { getFirestore, collection, getDocs, doc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-functions-compat.js";
+
+// Initialize Firebase services from the global window object
+const firebaseApp = window.firebase.app();
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+const functions = getFunctions(firebaseApp);
+
+// --- AUTH GUARD & INITIALIZATION ---
+onAuthStateChanged(auth, user => {
+    if (user) {
+        // Check if the user is an admin
+        user.getIdTokenResult(true).then(idTokenResult => {
+            if (idTokenResult.claims.admin) {
+                document.body.style.visibility = 'visible';
+                initializeDashboard();
             } else {
-                // No user is logged in, redirect
-                window.location.href = '/login.html';
-                resolve(false);
+                // If not an admin, sign out and redirect to login
+                signOut(auth).then(() => window.location.href = '/login.html');
             }
         });
-    });
-}
-
-// --- Main Entry Point ---
-document.addEventListener('DOMContentLoaded', () => {
-    checkAdminStatus().then(isAdmin => {
-        if (isAdmin) {
-            document.body.style.visibility = 'visible';
-            initializeDashboard();
-        }
-    });
+    } else {
+        // No user logged in, redirect
+        window.location.href = '/login.html';
+    }
 });
 
-
 function initializeDashboard() {
-    // Setup core navigation and functionality
     setupNavigation();
-    setupUserManagement();
-    setupAnalytics();
-    setupAdminCreation();
+    loadDashboardData();
+    loadUsers();
 
-    // Logout button
-    document.getElementById('logout-btn').addEventListener('click', () => {
-        firebase.auth().signOut(); // The auth guard will redirect automatically
-    });
+    document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+
+    const adminForm = document.getElementById('admin-signup-form');
+    adminForm.addEventListener('submit', handleAdminFormSubmit);
 }
 
 // --- NAVIGATION ---
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
-    const contentSections = document.querySelectorAll('.content-section');
+    const sections = document.querySelectorAll('.content-section');
+
+    const switchView = (targetId) => {
+        sections.forEach(s => s.classList.toggle('active', s.id === targetId));
+        navItems.forEach(n => n.classList.toggle('active', n.dataset.section === targetId));
+    };
 
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
-
-            // Update nav item active class
-            navItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-
-            // Show the correct content section
-            const sectionId = item.getAttribute('data-section');
-            contentSections.forEach(section => {
-                section.classList.toggle('active', section.id === sectionId);
-            });
+            switchView(item.dataset.section);
         });
+    });
+
+    document.getElementById('back-to-users-btn').addEventListener('click', () => switchView('user-management-section'));
+
+    document.getElementById('user-table-body').addEventListener('click', handleUserActions);
+    
+    document.querySelectorAll('.user-detail-tabs .tab').forEach(tab => {
+        tab.addEventListener('click', () => handleTabSwitching(tab));
     });
 }
 
+// --- EVENT HANDLERS ---
+async function handleUserActions(e) {
+    const button = e.target.closest('button');
+    if (!button) return;
 
-// --- SECTION 1: USER MANAGEMENT ---
-function setupUserManagement() {
-    let lastVisibleDoc = null;
-    let firstVisibleDoc = null;
-    let currentPage = 1;
-    const USERS_PER_PAGE = 10;
+    const userId = button.dataset.userId;
+    const action = button.dataset.action;
 
-    const userTableBody = document.getElementById('user-table-body');
-    const nextBtn = document.getElementById('next-page');
-    const prevBtn = document.getElementById('prev-page');
-
-    const fetchUsers = async (startAfter = null, endBefore = null) => {
-        let query = firebase.firestore().collection('users').orderBy('createdAt', 'desc').limit(USERS_PER_PAGE);
-        if (startAfter) {
-            query = query.startAfter(startAfter);
+    if (action === 'view') {
+        loadUserDetail(userId);
+        document.querySelector('.nav-item[data-section="user-management-section"]').classList.remove('active');
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        document.getElementById('user-detail-section').classList.add('active');
+    } else if (action === 'suspend') {
+        const currentStatus = button.dataset.status === 'true';
+        toggleUserStatus(userId, !currentStatus);
+    } else if (action === 'delete') {
+        if (confirm(`Are you sure you want to permanently delete user ${userId}? This cannot be undone.`)) {
+            deleteUser(userId);
         }
-        if (endBefore) {
-             query = firebase.firestore().collection('users').orderBy('createdAt', 'desc').endBefore(endBefore).limitToLast(USERS_PER_PAGE);
-        }
-        const snapshot = await query.get();
-        return {
-            users: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            lastDoc: snapshot.docs[snapshot.docs.length - 1],
-            firstDoc: snapshot.docs[0]
-        };
-    };
+    }
+}
 
-    const renderTable = (users) => {
-        userTableBody.innerHTML = '';
-        if (!users || users.length === 0) {
-            userTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No users found.</td></tr>';
+function handleTabSwitching(clickedTab) {
+    document.querySelectorAll('.user-detail-tabs .tab').forEach(t => t.classList.remove('active'));
+    clickedTab.classList.add('active');
+    const targetContentId = `tab-${clickedTab.dataset.tab}`;
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === targetContentId));
+}
+
+async function handleAdminFormSubmit(e) {
+    e.preventDefault();
+    const email = e.target.email.value;
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const statusEl = document.getElementById('signup-status-message');
+
+    if (!email) {
+        showStatus('Please enter a valid email address.', 'error', statusEl);
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing...';
+
+    const setUserAsAdmin = httpsCallable(functions, 'setUserAsAdmin');
+    try {
+        const result = await setUserAsAdmin({ email });
+        showStatus(result.data.message, 'success', statusEl);
+        e.target.reset();
+    } catch (error) {
+        showStatus(error.message, 'error', statusEl);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Process Request';
+    }
+}
+
+// --- DATA FETCHING & RENDERING ---
+async function loadDashboardData() {
+    const getAnalyticsData = httpsCallable(functions, 'getAnalyticsData');
+    try {
+        const result = await getAnalyticsData();
+        const data = result.data;
+        document.getElementById('total-users').textContent = data.totalUsers ?? '0';
+        document.getElementById('active-users').textContent = data.newSignups ?? '0';
+        renderCharts(data);
+    } catch (error) {
+        console.error("Error fetching analytics data:", error);
+    }
+}
+
+async function loadUsers() {
+    const tbody = document.getElementById('user-table-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading users...</td></tr>';
+    try {
+        const usersSnapshot = await getDocs(query(collection(db, 'users'), orderBy('email')));
+        if (usersSnapshot.empty) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No users found.</td></tr>';
             return;
         }
-        users.forEach(user => {
-            const row = document.createElement('tr');
-            row.dataset.userId = user.id;
-            row.dataset.userName = user.displayName || user.email;
+        tbody.innerHTML = '';
+        usersSnapshot.forEach(doc => {
+            const user = { id: doc.id, ...doc.data() };
             const status = user.disabled ? 'Suspended' : 'Active';
-            row.dataset.status = status;
-            const statusClass = user.disabled ? 'status-suspended' : 'status-active';
-            row.innerHTML = `
-                <td>
-                    <div class="user-profile">
-                        <div class="user-avatar">${(user.displayName || user.email).charAt(0).toUpperCase()}</div>
-                        <div class="user-info">
-                            <div class="name">${user.displayName || 'No Name'}</div>
-                            <div class="email">${user.email}</div>
-                        </div>
-                    </div>
-                </td>
-                <td>${user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
-                <td><span class="status ${statusClass}">${status}</span></td>
-                <td class="actions-cell">
-                     <button class="btn-suspend" title="${status === 'Active' ? 'Suspend' : 'Enable'}">🔄</button>
-                     <button class="btn-delete" title="Delete">🗑️</button>
-                </td>`;
-            userTableBody.appendChild(row);
-        });
-    };
-
-    const loadUsers = async (direction) => {
-        let startAfter = direction === 'next' ? lastVisibleDoc : null;
-        let endBefore = direction === 'prev' ? firstVisibleDoc : null;
-        
-        try {
-            const data = await fetchUsers(startAfter, endBefore);
-            if(data.users.length > 0){
-                lastVisibleDoc = data.lastDoc;
-                firstVisibleDoc = data.firstDoc;
-                renderTable(data.users);
-                if(direction) currentPage += (direction === 'next' ? 1 : -1);
-                prevBtn.disabled = currentPage === 1;
-                nextBtn.disabled = data.users.length < USERS_PER_PAGE;
-            } else {
-                 if (direction === 'next') nextBtn.disabled = true;
-            }
-        } catch (error) {
-             console.error("Error fetching users:", error);
-             userTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">Failed to load users.</td></tr>';
-        }
-    };
-    
-    userTableBody.addEventListener('click', async (e) => {
-        // User action logic (delete/suspend) with status messages
-    });
-    
-    nextBtn.addEventListener('click', () => loadUsers('next'));
-    prevBtn.addEventListener('click', () => loadUsers('prev'));
-
-    loadUsers(); // Initial load
-}
-
-// --- SECTION 2: ANALYTICS ---
-function setupAnalytics() {
-    const getAnalyticsData = firebase.functions().httpsCallable('getAnalyticsData');
-    
-    getAnalyticsData().then(result => {
-        const { leaderboard } = result.data;
-        // Render leaderboard table
-        const leaderboardBody = document.getElementById('leaderboard-table-body');
-        leaderboardBody.innerHTML = '';
-        leaderboard.forEach(user => {
-            leaderboardBody.innerHTML += `
+            const row = `
                 <tr>
                     <td>
                         <div class="user-profile">
-                            <div class="user-avatar">${user.name.charAt(0)}</div>
+                            <div class="user-avatar">${(user.displayName || user.email).charAt(0).toUpperCase()}</div>
                             <div class="user-info">
-                                <div class="name">${user.name}</div>
+                                <div class="name">${user.displayName || 'N/A'}</div>
                                 <div class="email">${user.email}</div>
                             </div>
                         </div>
                     </td>
-                    <td>${user.goalsCompleted}</td>
-                </tr>`;
+                    <td>${user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
+                    <td>${user.lastActive ? new Date(user.lastActive.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
+                    <td><span class="${status === 'Active' ? 'text-success' : 'text-danger'}">${status}</span></td>
+                    <td class="table-actions">
+                        <button class="btn btn-secondary" data-user-id="${user.id}" data-action="view">View</button>
+                        <button class="btn btn-danger" data-user-id="${user.id}" data-action="suspend" data-status="${user.disabled || false}">${status === 'Active' ? 'Suspend' : 'Enable'}</button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
         });
-
-        // Render chart with dummy data for now
-        new Chart(document.getElementById('userActivityChart'), {
-            type: 'line',
-            data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                datasets: [{
-                    label: 'New Signups',
-                    data: [12, 19, 3, 5, 2, 3],
-                    borderColor: 'rgba(138, 43, 226, 1)',
-                    backgroundColor: 'rgba(138, 43, 226, 0.2)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: { scales: { y: { beginAtZero: true } } }
-        });
-    }).catch(err => {
-        console.error("Error fetching analytics", err);
-        document.getElementById('leaderboard-table-body').innerHTML = `<tr><td colspan="2">Error loading data.</td></tr>`;
-    });
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Failed to load users.</td></tr>';
+        console.error("Error fetching users:", error);
+    }
 }
 
-// --- SECTION 3: CREATE ADMIN ---
-function setupAdminCreation() {
-    const form = document.getElementById('admin-signup-form');
-    const statusMessage = document.getElementById('signup-status-message');
-    const submitBtn = document.getElementById('submit-btn');
+async function loadUserDetail(userId) {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (userDoc.exists()) {
+        const user = userDoc.data();
+        document.getElementById('user-detail-avatar').textContent = (user.displayName || user.email).charAt(0).toUpperCase();
+        document.getElementById('user-detail-name').textContent = user.displayName || 'N/A';
+        document.getElementById('user-detail-email').textContent = user.email;
+        // Further implementation can fetch transactions, goals, etc.
+    }
+}
 
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+// --- USER ACTIONS (CALLING CLOUD FUNCTIONS) ---
+async function toggleUserStatus(uid, shouldDisable) {
+    const toggleUser = httpsCallable(functions, 'toggleUserStatus');
+    try {
+        await toggleUser({ uid, disable: shouldDisable });
+        showActionStatus(`User status updated successfully.`, 'success');
+        loadUsers(); // Refresh list
+    } catch (error) {
+        showActionStatus(error.message, 'error');
+    }
+}
 
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Processing...';
-        statusMessage.style.display = 'none';
+async function deleteUser(uid) {
+    const deleteUserData = httpsCallable(functions, 'deleteUserData');
+    try {
+        await deleteUserData({ uid });
+        showActionStatus(`User deleted successfully.`, 'success');
+        loadUsers(); // Refresh list
+    } catch (error) {
+        showActionStatus(error.message, 'error');
+    }
+}
 
-        const setUserAsAdmin = firebase.functions().httpsCallable('setUserAsAdmin');
-        setUserAsAdmin({ email, password })
-            .then(result => {
-                statusMessage.textContent = result.data.message;
-                statusMessage.className = 'status-message status-success';
-                statusMessage.style.display = 'block';
-                form.reset();
-            })
-            .catch(error => {
-                statusMessage.textContent = `Error: ${error.message}`;
-                statusMessage.className = 'status-message status-error';
-                statusMessage.style.display = 'block';
-            })
-            .finally(() => {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Process Request';
-            });
+// --- UI UTILITY FUNCTIONS ---
+function showStatus(message, type, element) {
+    element.textContent = message;
+    element.className = `status-message status-${type}`;
+    element.style.display = 'block';
+    setTimeout(() => { element.style.display = 'none'; }, 6000);
+}
+
+function showActionStatus(message, type = 'success') {
+    const el = document.getElementById('action-status-message');
+    if (el) showStatus(message, type, el);
+}
+
+function renderCharts(data) {
+    // Destroy old charts if they exist
+    if (window.registrationsChart) window.registrationsChart.destroy();
+    if (window.activityChart) window.activityChart.destroy();
+
+    // User Registrations Chart
+    const regCtx = document.getElementById('user-registrations-chart').getContext('2d');
+    window.registrationsChart = new Chart(regCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], // Placeholder data
+            datasets: [{
+                label: 'New Users',
+                data: [65, 59, 80, 81], // Placeholder data
+                backgroundColor: 'rgba(94, 53, 177, 0.2)',
+                borderColor: 'rgba(94, 53, 177, 1)',
+                borderWidth: 1
+            }]
+        }
+    });
+
+    // User Activity Chart (Leaderboard)
+    const activityCtx = document.getElementById('user-activity-chart').getContext('2d');
+    const leaderboard = data.leaderboard || [];
+    window.activityChart = new Chart(activityCtx, {
+        type: 'pie',
+        data: {
+            labels: leaderboard.length ? leaderboard.map(u => u.name) : ['No Data'],
+            datasets: [{
+                data: leaderboard.length ? leaderboard.map(u => u.goalsCompleted) : [1],
+                backgroundColor: ['#5E35B1', '#7E57C2', '#9575CD', '#B39DDB', '#D1C4E9'],
+            }]
+        },
+        options: { plugins: { legend: { position: 'top' } } }
     });
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
@@ -10,8 +11,42 @@ const db = admin.firestore();
 const auth = admin.auth();
 
 /**
+ * [ONE-TIME USE] Claims the first administrator account if no other admins exist.
+ * This should be called from the browser console by the first user after they sign up.
+ * It should be disabled or deleted after the first admin is successfully created.
+ */
+export const claimFirstAdmin = onCall(async (request) => {
+  // 1. Ensure the user calling this function is authenticated.
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "You must be logged in to call this function."
+    );
+  }
+
+  // 2. Check if any admin users already exist to prevent misuse.
+  const listUsersResult = await auth.listUsers(10); // Check a small batch of users
+  for (const user of listUsersResult.users) {
+    if (user.customClaims && user.customClaims["admin"] === true) {
+      throw new HttpsError(
+        "already-exists",
+        "An admin user already exists. This function can no longer be used."
+      );
+    }
+  }
+
+  // 3. If no admins exist, make the current user an admin.
+  const uid = request.auth.uid;
+  await auth.setCustomUserClaims(uid, {admin: true});
+
+  return {
+    message: `Success! You (${request.auth.token.email}) are now the first admin. Please refresh.`,
+  };
+});
+
+
+/**
  * [ADMIN] Deletes a specified user's account and all their data.
- * Can only be called by an authenticated user with an `admin` custom claim.
  */
 export const deleteUserData = onCall(async (request) => {
   if (request.auth?.token.admin !== true) {
@@ -56,8 +91,6 @@ export const toggleUserStatus = onCall(async (request) => {
 
 /**
  * [ADMIN] Creates a new admin user or upgrades an existing user to an admin.
- * For enhanced security, the client should enforce re-authentication of the acting admin
- * before calling this function.
  */
 export const setUserAsAdmin = onCall(async (request) => {
   if (request.auth?.token.admin !== true) {

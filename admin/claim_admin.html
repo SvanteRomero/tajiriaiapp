@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Claim Admin Role</title>
+    <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Claim First Admin Role</h1>
+        <p>After logging in, click the button below to become the first administrator.</p>
+        <div id="status-message" class="status-message"></div>
+        <button id="claim-btn" class="submit-btn" disabled>Loading...</button>
+    </div>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions-compat.js"></script>
+    <script src="/js/firebase-config.js"></script>
+    <script src="/js/claim_admin.js"></script>
+</body>
+</html>

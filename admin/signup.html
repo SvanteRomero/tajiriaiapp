@@ -1,23 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Admin Login</title>
+    <title>Admin Sign Up</title>
     <link rel="stylesheet" href="/css/auth.css">
 </head>
 <body>
     <div class="auth-container">
-        <h1>Admin Login</h1>
-        <form id="login-form">
+        <h1>Create Account</h1>
+        <form id="signup-form">
+            <div class="form-field"><label for="displayName">Full Name</label><input type="text" id="displayName" required></div>
             <div class="form-field"><label for="email">Email</label><input type="email" id="email" required></div>
-            <div class="form-field"><label for="password">Password</label><input type="password" id="password" required></div>
-            <button type="submit" class="submit-btn">Login</button>
+            <div class="form-field"><label for="password">Password</label><input type="password" id="password" required minlength="6"></div>
+            <button type="submit" class="submit-btn">Create Account</button>
         </form>
         <div id="error-message" class="status-message status-error"></div>
-        <div class="auth-footer"><p>Need an account? <a href="/signup.html">Sign Up</a></p></div>
+        <div class="auth-footer"><p>Already have an account? <a href="/login.html">Login</a></p></div>
     </div>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth-compat.js"></script>
     <script src="/js/firebase-config.js"></script>
-    <script src="/js/login.js"></script>
+    <script src="/js/signup.js"></script>
 </body>
 </html>
