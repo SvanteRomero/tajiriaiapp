@@ -41,9 +41,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 50);
-
+    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (pickedFile != null) {
       setState(() {
         _imageFile = File(pickedFile.path);
@@ -52,39 +50,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
       String? photoUrl = _networkImageUrl;
-
       if (_imageFile != null) {
-        // --- THIS IS THE FIX ---
-        // Create a unique filename to avoid conflicts.
         final String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-        // Construct the path to match your new storage rules: `user_avatars/{userId}/{fileName}`
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('user_avatars')
-            .child(widget.user.uid) // The user-specific folder
-            .child('$fileName.jpg'); // The unique file within that folder
-        // --- END OF FIX ---
-
+        final ref = FirebaseStorage.instance.ref().child('user_avatars').child(widget.user.uid).child('$fileName.jpg');
         await ref.putFile(_imageFile!);
         photoUrl = await ref.getDownloadURL();
       }
-
       await widget.user.updateDisplayName(_nameController.text);
       if (photoUrl != widget.user.photoURL) {
         await widget.user.updatePhotoURL(photoUrl);
       }
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .set({
+      await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).set({
         'displayName': _nameController.text,
         'photoUrl': photoUrl,
       }, SetOptions(merge: true));
@@ -95,14 +75,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        print("Error updating profile: $e");
-        showCustomSnackbar(context, 'Failed to update profile. Please try again.',
-            type: SnackbarType.error);
+        showCustomSnackbar(context, 'Failed to update profile. Please try again.', type: SnackbarType.error);
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -115,45 +91,35 @@ class _EditProfilePageState extends State<EditProfilePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-                'This action is irreversible. Are you sure you want to delete your account and all associated data?'),
+            const Text('This is a critical action. To confirm, please enter your password.'),
             const SizedBox(height: 20),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Enter your password to confirm',
-              ),
-            ),
+            TextField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Confirm & Delete', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
 
     if (confirmed != true) return;
+    if (_passwordController.text.trim().isEmpty) {
+      showCustomSnackbar(context, 'Password is required to delete your account.', type: SnackbarType.error);
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
-      AuthCredential credential = EmailAuthProvider.credential(
-        email: widget.user.email!,
-        password: _passwordController.text.trim(),
-      );
+      // Step 1: Re-authenticate FIRST for security.
+      AuthCredential credential = EmailAuthProvider.credential(email: widget.user.email!, password: _passwordController.text.trim());
       await widget.user.reauthenticateWithCredential(credential);
 
+      // Step 2: Unsubscribe from notifications AFTER successful re-authentication.
       await NotificationService().unsubscribeFromUserTopic(widget.user.uid);
       
-      HttpsCallable callable =
-          FirebaseFunctions.instance.httpsCallable('deleteUserData');
+      // Step 3: Call the Cloud Function to delete data and auth record.
+      HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('deleteOwnAccount');
       await callable.call();
 
       if (mounted) {
@@ -164,12 +130,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
         showCustomSnackbar(context, 'Account deleted successfully.');
       }
     } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        showCustomSnackbar(context, e.message ?? 'An error occurred',
-            type: SnackbarType.error);
-      }
+      if (mounted) showCustomSnackbar(context, e.message ?? 'An authentication error occurred', type: SnackbarType.error);
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) showCustomSnackbar(context, e.message ?? 'A server error occurred', type: SnackbarType.error);
     } finally {
       if (mounted) {
+        _passwordController.clear();
         setState(() => _isLoading = false);
       }
     }
@@ -188,36 +154,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 20),
               _buildImagePicker(),
               const SizedBox(height: 30),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: "Display Name"),
-                validator: (value) =>
-                    value!.isEmpty ? 'Please enter a name' : null,
-              ),
+              TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: "Display Name"), validator: (value) => value!.isEmpty ? 'Please enter a name' : null),
               const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveProfile,
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Save Changes"),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _deleteAccount,
-                  icon: const Icon(Icons.delete_forever),
-                  label: const Text("Delete Account"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
-                  ),
-                ),
-              ),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _isLoading ? null : _saveProfile, child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Save Changes"))),
+              const Divider(height: 40),
+              SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _isLoading ? null : _deleteAccount, icon: const Icon(Icons.delete_forever), label: const Text("Delete Account"), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700))),
             ],
           ),
         ),
@@ -231,27 +172,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         children: [
           CircleAvatar(
             radius: 60,
-            backgroundImage: _imageFile != null
-                ? FileImage(_imageFile!)
-                : (_networkImageUrl != null
-                    ? NetworkImage(_networkImageUrl!)
-                    : null) as ImageProvider?,
-            child: _imageFile == null && _networkImageUrl == null
-                ? const Icon(Icons.person, size: 60)
-                : null,
+            backgroundImage: _imageFile != null ? FileImage(_imageFile!) : (_networkImageUrl != null ? NetworkImage(_networkImageUrl!) : null) as ImageProvider?,
+            child: _imageFile == null && _networkImageUrl == null ? const Icon(Icons.person, size: 60) : null,
           ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: Theme.of(context).primaryColor,
-              child: IconButton(
-                icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                onPressed: _pickImage,
-              ),
-            ),
-          ),
+          Positioned(bottom: 0, right: 0, child: CircleAvatar(radius: 20, backgroundColor: Theme.of(context).primaryColor, child: IconButton(icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20), onPressed: _pickImage))),
         ],
       ),
     );

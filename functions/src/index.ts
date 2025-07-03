@@ -22,3 +22,7 @@ export * from "./scheduled/marketingTasks";
 // Import triggered functions
 export * from "./triggers/authTriggers";
 export * from "./triggers/transactionTriggers";
+
+// Import analytics functions
+export * from "./callable/analytics";
+
